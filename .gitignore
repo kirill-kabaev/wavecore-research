@@ -1,4 +1,7 @@
-# LaTeX
+# Generated PDF
+*.pdf
+
+# LaTeX temporary files
 *.aux
 *.bbl
 *.bcf
@@ -11,17 +14,11 @@
 *.synctex.gz
 *.toc
 *.xdv
-*.pdf
 
 # Python
 .venv/
 __pycache__/
-*.pyc
-
-# C++ and CMake
-build/
-CMakeFiles/
-CMakeCache.txt
 
 # MkDocs
 site/
+docs/papers/

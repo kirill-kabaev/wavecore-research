@@ -1,0 +1,114 @@
+
+name: Build and Publish WaveCore
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wavecore-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build PDF and Website
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install minimal LaTeX
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive \
+            apt-get install -y --no-install-recommends \
+            latexmk \
+            biber \
+            texlive-luatex \
+            texlive-latex-recommended \
+            texlive-lang-cyrillic \
+            texlive-fonts-recommended \
+            fonts-cmu
+
+      - name: Verify LaTeX tools
+        run: |
+          lualatex --version | head -n 2
+          latexmk --version | head -n 2
+          biber --version
+
+      - name: Build article
+        working-directory: papers/01_maxwell_helmholtz
+        run: |
+          latexmk -lualatex \
+            -interaction=nonstopmode \
+            -file-line-error \
+            -halt-on-error \
+            main.tex
+
+      - name: Prepare PDF
+        run: |
+          mkdir -p docs/papers
+          cp papers/01_maxwell_helmholtz/main.pdf \
+             docs/papers/maxwell-helmholtz.pdf
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wavecore-article
+          path: docs/papers/maxwell-helmholtz.pdf
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+
+      - name: Install MkDocs
+        run: |
+          python -m pip install \
+            -r requirements-docs.txt
+
+      - name: Build website
+        run: |
+          mkdocs build --strict
+
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload website artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site/
+
+  deploy:
+    name: Deploy GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Publish website
+        id: deployment
+        uses: actions/deploy-pages@v4
