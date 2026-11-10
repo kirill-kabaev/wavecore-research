@@ -1,0 +1,49 @@
+% !TeX root = ../main.tex
+\section{Волновое уравнение}
+\label{sec:wave}
+
+Рассмотрим однородную, линейную,
+изотропную среду без свободных зарядов
+и токов, в которой $\varepsilon$
+и $\mu$ постоянны.
+
+Взяв ротор уравнения Фарадея,
+получим:
+
+\begin{equation}
+\nabla \times (\nabla \times \mathbf{E})
+=
+-\mu \frac{\partial}{\partial t}
+(\nabla \times \mathbf{H}).
+\end{equation}
+
+Используя уравнение Ампера--Максвелла
+и векторное тождество
+
+\begin{equation}
+\nabla \times (\nabla \times \mathbf{E})
+=
+\nabla(\nabla \cdot \mathbf{E})
+-
+\nabla^2 \mathbf{E},
+\end{equation}
+
+а также условие
+$\nabla \cdot \mathbf{E}=0$,
+получим волновое уравнение:
+
+\begin{equation}
+\boxed{
+\nabla^2 \mathbf{E}
+-
+\mu\varepsilon
+\frac{\partial^2 \mathbf{E}}{\partial t^2}
+=0
+}.
+\end{equation}
+
+Скорость распространения волны:
+
+\begin{equation}
+v=\frac{1}{\sqrt{\mu\varepsilon}}.
+\end{equation}

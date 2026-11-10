@@ -1,0 +1,58 @@
+% !TeX program = lualatex
+% !TeX root = main.tex
+
+
+\documentclass[12pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{russian}
+\setotherlanguage{english}
+
+\setmainfont{CMU Serif}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{geometry}
+
+\geometry{margin=25mm}
+
+\title{
+    Физические основы численного
+    моделирования электромагнитных волн
+}
+
+\author{Кирилл Кабаев}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Рассматриваются физические основы
+вычислительной электродинамики,
+уравнения Максвелла и численные методы
+моделирования волновых процессов.
+\end{abstract}
+
+\section{Уравнения Максвелла}
+
+Закон электромагнитной индукции Фарадея:
+
+\begin{equation}
+\nabla \times \mathbf{E}
+=
+-\frac{\partial \mathbf{B}}{\partial t}.
+\end{equation}
+
+\section{Уравнение Гельмгольца}
+
+В однородной среде для скалярного
+волнового поля:
+
+\begin{equation}
+\nabla^2 u + k^2 u = 0.
+\end{equation}
+
+\end{document}

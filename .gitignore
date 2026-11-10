@@ -1,0 +1,27 @@
+# LaTeX
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.xdv
+*.pdf
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# C++ and CMake
+build/
+CMakeFiles/
+CMakeCache.txt
+
+# MkDocs
+site/
