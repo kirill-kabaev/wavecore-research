@@ -135,10 +135,114 @@ output labels needed to interpret the run.
 
 **Related publication:** <a href="../papers/02_gmres_numerical_observations/main.tex">`papers/02_gmres_numerical_observations/main.tex`</a>
 
+### Stage 5A: FDFD + GMRES integration
+
+**Date:** 2026-11-11 (local run date).
+
+**Research question:** Can the existing public FDFD and complex GMRES APIs
+recover algebraically manufactured fields with independently verified residual
+and solution error?
+
+**Hypothesis:** Away from discrete resonances, zero-start GMRES should recover
+the manufactured vector to accuracy consistent with its true residual and the
+system's spectral condition number.
+
+**Implementation revision:** Base revision before these changes:
+`0c9c6f1a1aeebe5eaff07fa53cecd1998eb7e6f7`. The measurements use that revision
+plus the uncommitted Stage 5A changes to `CMakeLists.txt` and the new
+`tests/helmholtz/test_integration.cpp`. The base hash alone does not identify
+the new integration executable; preserve this patch with the measurements.
+
+**Method:** TM_z scalar field with time convention `exp(-i omega t)`, real
+lossless homogeneous material, homogeneous Dirichlet/PEC boundaries, and
+`A_h = -Delta_h - k^2 I`. Grid dimensions count interior nodes and vectors use
+`p = j*nx + i`. Each reference field comes from `manufactured_solution`.
+The stored RHS is `b = A_h*u_exact`, computed with `CsrMatrix::multiply` and
+cross-checked against `algebraic_manufactured_rhs`. GMRES starts from explicit
+complex zeros. A fresh public CSR matvec computes `b - A_h*u_computed`, with
+norms accumulated independently in long double. Forward error is measured
+against `u_exact` separately. The check does not use GMRES's reported residual
+as its acceptance oracle. Finite values, CONVERGED status, history size, and
+global iteration limits are also checked. BREAKDOWN always fails these solves.
+
+**Environment:** Ubuntu/WSL2, Linux x86_64, GCC 13.3.0
+(`Ubuntu 13.3.0-6ubuntu2~24.04.1`), CMake 3.28.3, C++20 Debug,
+`-g -Wall -Wextra -Wpedantic`, sequential `std::complex<double>` arithmetic.
+
+**Solver parameters:** Tolerance `1e-12`, maximum iterations 1000, zero initial
+guess in all cases. Domain lengths below are metres; k is in inverse metres.
+
+| Case | nx x ny | Lx x Ly | hx, hy | k | Manufactured modes/amplitudes | Requested restart |
+|---|---|---|---|---:|---|---:|
+| small | 3 x 2 | 1 x 1 | 1/4, 1/3 | 3 | (1,2): 1+0.25i | 10 (capped at 6) |
+| medium | 15 x 11 | 1 x 1 | 1/16, 1/12 | 8 | (1,2): 1+0.25i | 10 |
+| altered | 7 x 5 | 1 x 0.75 | 1/8, 1/8 | 3 | (2,1): 1+0.25i | 10 |
+| restarted | 5 x 4 | 1 x 1 | 1/6, 1/5 | 3 | (1,2): 1+0.25i; (1,1): 0.5-0.75i; (3,2): -0.25+0.5i | 2 |
+
+**Predeclared checks and tolerance rationale:** Enumerate every discrete
+Dirichlet mode independently using the analytical sine spectrum in long
+double. Require `delta_h = min|lambda_pq,h - k^2| > 1 m^-2` and
+`kappa_2 < 1000`. For this real symmetric matrix,
+`kappa_2 = max|lambda_pq,h - k^2| / delta_h`. Require independent relative
+residual <= `tau = 1e-12`. The solution-error threshold is
+`2*kappa_2*(tau + 64*epsilon_double)`, motivated by the forward-error scale
+`kappa_2*rho` and a conservative rounding allowance for RHS construction and
+short CSR products. This is an engineering tolerance for these fixed cases,
+not a rigorous floating-point certificate. The modal RHS cross-check uses
+`64*epsilon_double*kappa_2`. Norm weights `hx*hy` cancel in the relative L2
+error on each uniform grid.
+
+**Measured results:** Final successful runs produced the following rounded
+values; no spatial-discretization error is inferred.
+
+| Case | nnz | delta_h (m^-2) | kappa_2 | Status | Iterations | Independent relative residual | Relative solution error |
+|---|---:|---:|---:|---|---:|---:|---:|
+| small | 20 | 9.372583002 | 7.748922254 | CONVERGED | 1 | 2.803805073e-16 | 1.922962686e-16 |
+| medium | 773 | 13.55836306 | 111.8386264 | CONVERGED | 1 | 2.951992605e-13 | 7.156105209e-15 |
+| altered | 151 | 17.89216815 | 26.60984559 | CONVERGED | 1 | 2.569974285e-15 | 4.646580477e-16 |
+| restarted | 82 | 10.19532121 | 21.16703087 | CONVERGED | 64 | 8.826281448e-13 | 3.218596031e-12 |
+
+The initial small-grid candidate used k=8 and failed the predeclared spectral
+gap guard (gap < 1 m^-2). Its k was changed to 3 before the final runs; no
+residual or solution-error tolerance was relaxed. The other configurations
+passed unchanged. Final full CTest: 9/9 passed, with no compiler warnings
+observed in the build output.
+
+**Interpretation:** The single-mode fields are discrete eigenvectors, making
+one-step convergence expected in exact arithmetic; this is a limited baseline.
+The three-mode configuration required 64 iterations with restart 2, explicitly
+testing continuation across cycles. Both the independent residual and reference
+error satisfy the predeclared checks in these runs.
+
+**Limitations:** These are small algebraic systems with known fields. The
+reference vector need not exactly solve the stored rounded system because
+forming b incurs roundoff. The independent residual still uses a double CSR
+product; only its norm/difference accumulation is wider. Condition numbers are
+analytical-spectrum estimates for the ideal stencil, not a numerical SVD of
+the rounded matrix. This campaign does not verify Stage 5B spatial convergence,
+near-resonant behavior, scalability, or a user-facing Helmholtz CLI.
+
+**Reproduction commands:** From the repository root with this Stage 5A patch:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel 2
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^wavecore.integration' -V
+```
+
+The integration executable prints status, iterations, requested restart,
+spectral gap, condition number, true residual, reference error, error threshold,
+and the full residual history. Raw verbose output from the recorded run is
+saved locally in `build/stage5a-results.txt` (generated artifact). Reproduce a
+single case with `./build/wavecore_integration_test restarted`.
+
+**Related publication:** No new manuscript or published result for Stage 5A.
+
 ## Known Limitations
 
-- The current records concern diagnostic linear systems, not an integrated
-  FDFD Helmholtz application.
+- The current records cover diagnostic linear systems and small algebraic
+  FDFD + GMRES integration tests; a user-facing application workflow is absent.
 - No spatial-refinement or convergence-order measurement has been recorded.
 - Near-resonance conditioning has not been systematically swept.
 - No preconditioning, large-scale scalability, or performance result is
@@ -147,8 +251,8 @@ output labels needed to interpret the run.
 
 ## Open Research Questions
 
-- How does the assembled FDFD Helmholtz operator behave when solved through
-  the public GMRES API as one reproducible workflow?
+- How does the verified algebraic FDFD + GMRES baseline extend to continuous
+  forcing and a user-facing reproducible workflow?
 - What spatial convergence order is observed when discretization and iteration
   errors are separated?
 - How do continuous and discrete resonance proximity affect conditioning,

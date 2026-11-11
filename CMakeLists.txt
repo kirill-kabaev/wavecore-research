@@ -117,4 +117,13 @@ if(BUILD_TESTING)
     set_target_properties(wavecore_gmres_test PROPERTIES CXX_EXTENSIONS OFF)
     wavecore_enable_warnings(wavecore_gmres_test)
     add_test(NAME wavecore.gmres COMMAND wavecore_gmres_test)
+
+    add_executable(wavecore_integration_test tests/helmholtz/test_integration.cpp)
+    target_link_libraries(wavecore_integration_test PRIVATE WaveCore::wavecore)
+    set_target_properties(wavecore_integration_test PROPERTIES CXX_EXTENSIONS OFF)
+    wavecore_enable_warnings(wavecore_integration_test)
+    foreach(integration_case IN ITEMS small medium altered restarted)
+        add_test(NAME wavecore.integration.${integration_case}
+                 COMMAND wavecore_integration_test ${integration_case})
+    endforeach()
 endif()

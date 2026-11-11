@@ -16,8 +16,15 @@ correctness proof for all numerical inputs.
 | `wavecore.assembly` / `test_assembly.cpp` | Helmholtz FDFD assembly and manufactured data | Control `nnz` counts for 1x1, 2x2, 3x2, and 5x5 grids; rectangular stencil and coefficients; sorted/unique CSR columns; no row-wrap connection; transpose symmetry; continuous/discrete eigenvalues; continuous and algebraic RHS formulas; `A_h u = f_alg` on several grids; invalid parameters and overflow. | Exact small-matrix CSR comparisons, tolerance-based complex comparisons, dense symmetry reconstruction, and typed exception checks. | Uses small deterministic grids only; does not establish grid-refinement order, resonance behavior, or end-to-end solver performance. |
 | `wavecore.gmres` / `test_gmres.cpp` | Restarted complex GMRES and diagnostics | Known identity, diagonal, and complex systems; Hermitian inner product behavior through solver diagnostics; two-pass MGS orthogonality; complex Givens behavior through convergence/residual checks; independently recomputed true residual; restart limits; happy breakdown; singular breakdown; zero RHS and exact initial guess; `NOT_CONVERGED`; ill-conditioned Hilbert-like system; complex nonnormal Jordan-like system; extreme finite scaling; estimated/true residual gaps; stagnation; invalid inputs and nonfinite arithmetic. | Public solver results are compared with an internal observation hook and independent wide-precision residual/error calculations. A local one-pass Arnoldi control is compared with the production two-pass basis defect. Assertions check statuses, errors, residual history, iteration limits, finite values, and diagnostics. | Small hand-constructed systems cannot characterize all conditioning, field sizes, restart choices, hardware, or long-run behavior. The diagnostic observer is a test-only detail API, not a general production instrumentation interface. |
 
-The five CTest names above are the complete registrations in the current
-CMake configuration.
+The five unit-test names above are complemented by four integration tests:
+
+| Test / CTest name | Component | Verified properties | Test methodology | Limitations |
+|---|---|---|---|---|
+| `wavecore.integration.small`, `wavecore.integration.medium`, `wavecore.integration.altered`, `wavecore.integration.restarted` / `test_integration.cpp` | End-to-end FDFD + GMRES | Nonresonant discrete spectrum; assembly and manufactured algebraic RHS consistency; zero-start solve; explicit CONVERGED status; independently recomputed CSR residual; separate relative solution error; finite solution/history; global iteration limit; actual restart in the mixed-mode case. | Compose existing public APIs. Form `b = A_h*u_exact`, cross-check the modal algebraic RHS, run GMRES, then use a fresh CSR matvec and long-double norm accumulation. Require residual <= `1e-12` and solution error <= `2*kappa_2*(1e-12 + 64*epsilon_double)`. | Small fixed grids, homogeneous Dirichlet conditions, and algebraic forcing only. Single-mode cases are eigenvectors and can converge in one step; the three-mode case exercises GMRES(2) restarts. No spatial-convergence claim. |
+
+There are nine CTest registrations in total. The detailed Stage 5A parameters,
+spectral gaps, measured results, tolerance rationale, and reproduction commands
+are recorded in the [research log](research-log.md#stage-5a-fdfd-gmres-integration).
 
 ## Component coverage
 
@@ -39,6 +46,9 @@ CMake configuration.
   residual confirmation, residual history shape and finiteness, restart and
   global iteration limits, happy/breakdown cases, zero-RHS handling, and
   invalid-input behavior.
+- **FDFD + GMRES integration:** four deterministic configurations compose
+  assembly, manufactured data, CSR multiplication, and the public solver;
+  success requires both true-residual and solution-error checks.
 
 ### Partially covered
 
@@ -57,9 +67,10 @@ CMake configuration.
 - **Ill-conditioned, nonnormal, and scaled systems:** Hilbert-like,
   Jordan-like, and `1e-200`/`1e200` scale cases are covered, without a broad
   parameter sweep or cross-platform comparison.
-- **FDFD/GMRES relationship:** each subsystem is tested independently and the
-  public APIs can be composed manually, but there is no dedicated integration
-  test for a complete Helmholtz solve.
+- **FDFD/GMRES relationship:** algebraic manufactured systems now have dedicated
+  integration tests, including a mixed-mode restarted solve. Continuous forcing,
+  spatial convergence, and an application-level parameter/input workflow remain
+  outside this coverage.
 
 ### Not yet covered
 
@@ -78,7 +89,7 @@ current assertions:
 
 | Gap | Future test type |
 |---|---|
-| FDFD+GMRES integration | Build a manufactured Helmholtz system, solve it through the public assembly and GMRES APIs, and independently verify the solution and true residual. |
+| Extended FDFD+GMRES integration | Extend the completed algebraic baseline to continuous RHS and an application-level input/output workflow, preserving independent residual and solution-error checks. |
 | Grid refinement and convergence order | Run a fixed manufactured mode over a documented sequence of `nx`, `ny` grids and compute norm errors and observed orders. |
 | Near-resonance behavior | Sweep `k^2` around continuous and discrete eigenvalues, recording conditioning indicators, solver status, and residual/error separately. |
 | Preconditioning | Add controlled solver tests comparing unpreconditioned and approved preconditioned variants on identical matrices and stopping criteria. |
