@@ -6,6 +6,11 @@ site_author: WaveCore Research
 docs_dir: docs
 site_dir: site
 
+# MkDocs excludes /templates/ by default; this project publishes the
+# numerical experiment template as a documentation page.
+exclude_docs: |
+  !/templates/
+
 theme:
   name: material
   language: ru
@@ -32,4 +37,7 @@ nav:
   - Главная: index.md
   - Публикации: publications.md
   - C++ API: cpp-api.md
+  - Test Coverage: test-coverage.md
+  - Research Log: research-log.md
+  - Numerical Experiment Template: templates/numerical-experiment.md
   - О проекте: about.md
