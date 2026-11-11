@@ -14,10 +14,15 @@
 *.synctex.gz
 *.toc
 *.xdv
+*.nav
+*.snm
+*.vrb
 
 # Python
 .venv/
 __pycache__/
+*.pyc
+.pytest_cache/
 
 # MkDocs
 site/
@@ -25,3 +30,23 @@ docs/papers/
 
 # CMake
 /build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.exe
+
+# Editor and operating-system temporary files
+.vscode/*.code-workspace
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db

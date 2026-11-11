@@ -40,4 +40,6 @@ nav:
   - Test Coverage: test-coverage.md
   - Research Log: research-log.md
   - Numerical Experiment Template: templates/numerical-experiment.md
+  - Developer Commands: developer-commands.md
+  - Research Roadmap: research-roadmap.md
   - О проекте: about.md
