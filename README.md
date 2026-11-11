@@ -20,6 +20,8 @@ tested numerical building blocks:
 End-to-end FDFD-plus-GMRES integration is verified through deterministic tests.
 Stage 5B confirms second-order spatial accuracy for a single sine mode and a
 two-mode mixture on four nested square grids with continuous manufactured forcing.
+Stage 5C.2 adds a separate four-grid convergence experiment on a 1 m by 1.5 m
+rectangle with unequal coordinate spacings and independent modal references.
 
 ## Current Implementation
 
@@ -86,10 +88,11 @@ After configuring and building, run:
 ctest --test-dir build --output-on-failure
 ```
 
-There are twelve registered tests: `wavecore.library_metadata`, `wavecore.grid`,
+There are thirteen registered tests: `wavecore.library_metadata`, `wavecore.grid`,
 `wavecore.csr_matrix`, `wavecore.assembly`, `wavecore.gmres`, four
 `wavecore.integration.*` cases, `wavecore.convergence`,
-`wavecore.convergence.multimode`, and `wavecore.verification.acceptance`.
+`wavecore.convergence.multimode`, `wavecore.verification.acceptance`, and
+`wavecore.convergence.rectangular`.
 See the [test coverage matrix](docs/test-coverage.md).
 
 ## Building Scientific Papers

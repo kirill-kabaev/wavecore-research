@@ -584,13 +584,156 @@ The root changelog records Stage 5A and the unreleased Stage 5B milestone.
 by the implemented experiments. README and navigation now reflect the completed
 test workflows. No production numerical kernel or manuscript is changed.
 
+### Stage 5C.2: Rectangular grid convergence
+
+**Pre-run protocol:** Written on 2026-11-11 before the first rectangular
+GMRES solve. The following predictions are analytic evaluations, not solver
+measurements. Acceptance thresholds are fixed by this protocol.
+
+**Implementation revision:** Base `b99f45ae8e056efe2582ddf6186db48b3bf4aafe`
+plus this experiment's new test and CMake registration. Production numerical
+code, the acceptance helper, and historical Stage 5B CSV files remain unchanged.
+
+**Question and hypothesis:** Does the FDFD scheme retain second-order accuracy
+when physical lengths, interior counts, and coordinate spacings differ?
+Expected spatial error is O(hx squared + hy squared) under joint refinement
+with a fixed spacing ratio, not a study of unequal directional refinement rates.
+
+**Model:** Homogeneous isotropic lossless TM_z, u=E_z, time convention
+exp(-i omega t), zero Dirichlet/PEC walls, Lx=1 m, Ly=1.5 m, k=1 inverse metre,
+field amplitude 1 V/m. Let alpha=pi/Lx and beta=pi/Ly. Then
+
+$$
+u^*(x,y)=\sin(\alpha x)\sin(\beta y),\quad
+\lambda=\alpha^2+\beta^2=13\pi^2/9,\quad
+f=(\lambda-k^2)u^*,\quad A_h=-\Delta_h-k^2I.
+$$
+
+Eigenvalue numerical values use metres; f has units V/m cubed. Existing public
+manufactured helpers supply the samples and continuous RHS; independent
+long-double coordinate formulas check them without production eigenvalue helpers.
+
+**Discrete reference and spectrum:** For each mode,
+
+$$
+\lambda_{mn,h}=\frac4{h_x^2}\sin^2\frac{m\pi h_x}{2L_x}
+              +\frac4{h_y^2}\sin^2\frac{n\pi h_y}{2L_y},\quad
+u_h=\frac{\lambda-1}{\lambda_{11,h}-1}u^*|_h=(1+d_h)u^*|_h,\quad
+d_h=\frac{\lambda-\lambda_{11,h}}{\lambda_{11,h}-1}>0.
+$$
+
+The continuous gap is lambda-1=13.2560952460 inverse square metres. Using
+sin(z)>=2z/pi yields lambda_11,h>=4/Lx squared + 4/Ly squared, hence
+delta_h>=43/9 inverse square metres for the full discrete spectrum. Its extrema
+are (1,1) and (nx,ny); kappa_2=(lambda_nx,ny,h-1)/delta_h. The square-specific
+helper `spectral_bounds` is deliberately not reused.
+
+**Analytic errors and order:** Define h=max(hx,hy)=hy, with hx=h/2:
+
+$$
+\lambda-\lambda_{11,h}
+=\frac{\alpha^4h_x^2+\beta^4h_y^2}{12}
+-\frac{\alpha^6h_x^4+\beta^6h_y^4}{360}+O(h_x^6+h_y^6).
+$$
+
+The positive fixed gap makes d_h=C h squared + O(h to the fourth), C>0.
+Both interior counts are odd, so the central maximum is sampled. Discrete sine
+orthogonality gives ||u*||_2,h=sqrt(Lx Ly)/2 and ||u*||_inf=1. Therefore exact
+spatial errors are sqrt(Lx Ly)*d_h/2 and d_h, with the same refinement order
+log2(d_coarse/d_fine). The L2 weight is sqrt(hx hy), not hx or hy alone.
+
+| Interior grid | hx (m) | hy=h (m) | Predicted spatial L2 (V) | Predicted spatial Linf (V/m) | Predicted order, both norms |
+|---|---|---|---|---|---|
+| 7 x 5 | 0.125 | 0.25 | 1.059680779712513e-2 | 1.730451467020187e-2 | N/A |
+| 15 x 11 | 0.0625 | 0.125 | 2.628888032823801e-3 | 4.292956180884899e-3 | 2.011105127551421 |
+| 31 x 23 | 0.03125 | 0.0625 | 6.559622205825326e-4 | 1.071181820646793e-3 | 2.002768065401026 |
+| 63 x 47 | 0.015625 | 0.03125 | 1.639119709049771e-4 | 2.676671276340775e-4 | 2.000691504867757 |
+
+These predictions were evaluated independently using Python Decimal arithmetic
+at 55 digits, with pi obtained from Machin's formula and sine from its Taylor
+series. No PDE solver was involved.
+
+**Predeclared acceptance:** Zero initial guess, GMRES tolerance=1e-11,
+restart=20, max_iterations=200. Require CONVERGED and independent true relative
+residual <=1e-11, checked with both a fresh public CSR product and a separate
+long-double product over stored CSR entries. All reported numerical metrics
+must be finite. Actual numerical/algebraic errors must be <=0.001 times exact
+spatial errors in both norms. Require algebraic L2<=B_2<=0.001 spatial L2,
+where B_2=||r||_2,h/delta_h + 64 epsilon_double kappa_2 ||u_h||_2,h; the rounding
+part is a conservative budget, not a universal theorem. Residual must also be
+at least 100 times below relative spatial error.
+
+Require strict decrease of both measured errors and analytic spatial errors.
+All predicted orders lie in [2,2.02]; observed orders must lie in [1.99,2.03]
+and differ from their analytic prediction by <=log2(1.001/0.999). This follows
+from the 0.1% algebraic-error allowance at adjacent levels. The existing
+single-mode acceptance profile applies to these order predictions without
+changing its semantics. Norms, reference formulas, and weight checks remain
+independent of that acceptance helper.
+
+**Environment:** 2026-11-11, Ubuntu 24.04/WSL2 x86_64, Linux
+6.18.58.1-microsoft-standard-WSL2; GCC 13.3.0, CMake 3.28.3; C++20 Debug,
+`-g -std=c++20 -Wall -Wextra -Wpedantic`. Production assembly/GMRES use complex
+double; independent references and diagnostic CSR products use complex long
+double. No extra dependencies or numerical-core changes.
+
+**Measured results:** All four systems returned CONVERGED in one iteration.
+The first table reports total numerical-minus-continuous errors. The earlier
+pre-run table remains the independent analytic prediction.
+
+| Grid | hx, hy (m) | Iterations | True residual (wide CSR) | L2(hx,hy) (V) | Linf (V/m) | Order L2 / Linf |
+|---|---|---|---|---|---|---|
+| 7 x 5 | 0.125, 0.25 | 1 | 1.2287581296e-15 | 1.0596807797e-2 | 1.7304514670e-2 | N/A |
+| 15 x 11 | 0.0625, 0.125 | 1 | 7.2959506927e-15 | 2.6288880328e-3 | 4.2929561809e-3 | 2.0111051276 / 2.0111051276 |
+| 31 x 23 | 0.03125, 0.0625 | 1 | 2.7777666262e-14 | 6.5596222058e-4 | 1.0711818206e-3 | 2.0027680654 / 2.0027680654 |
+| 63 x 47 | 0.015625, 0.03125 | 1 | 1.3035671463e-13 | 1.6391197090e-4 | 2.6766712763e-4 | 2.0006915049 / 2.0006915049 |
+
+| Grid | Fresh public-CSR residual | Algebraic L2(hx,hy) | Algebraic Linf | L2 budget B_2 |
+|---|---|---|---|---|
+| 7 x 5 | 1.4876749853e-15 | 7.9193906516e-17 | 1.8149544367e-16 | 2.0796007098e-13 |
+| 15 x 11 | 8.3601757077e-15 | 1.3042554170e-16 | 3.3907067692e-16 | 8.4194514975e-13 |
+| 31 x 23 | 2.9890829483e-14 | 7.9917710094e-16 | 1.3551442954e-15 | 3.3753734473e-12 |
+| 63 x 47 | 1.3517226999e-13 | 2.2055247333e-15 | 3.8250110544e-15 | 1.3521698965e-11 |
+
+**Data and interpretation:** Raw full-precision output after the metadata line
+is preserved in `experiments/helmholtz_2d/results/stage5c_rectangular_convergence.csv`.
+`true_residual` uses a separate long-double accumulation of stored CSR products;
+`csr_true_residual` uses a fresh public double-precision CSR matvec and wide
+norms. Both are independently checked against tolerance, not inferred from
+GMRES bookkeeping. Their difference reflects sparse-product rounding.
+Spatial errors dominate measured algebraic errors and the conservative error
+budgets. Both observed orders agree with the pre-run modal prediction and
+approach two. The metric called algebraic error includes input/reference and
+arithmetic rounding relative to the ideal discrete stencil solution.
+
+**Reproduction:** From the repository root with this Stage 5C.2 patch:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel 2
+ctest --test-dir build -R '^wavecore.convergence.rectangular$' -V
+./build/wavecore_rectangular_convergence_test
+ctest --test-dir build --output-on-failure
+```
+
+The executable prints versioned metadata plus a CSV table. The saved CSV is
+compared with repeated successful output; existing Stage 5B CSV files remain
+historical data and are not overwritten.
+
+**Limitations:** One smooth mode on one rectangle, fixed hx/hy=1/2, joint
+refinement, k=1, and one GCC/WSL2 environment. The RHS is still a discrete
+eigenvector; one-step GMRES is expected and does not demonstrate solver
+scalability or exercise restart. Other aspect ratios, unequal-rate refinement,
+indefinite/near-resonant problems, heterogeneous media, and platform portability
+are not established. No article or publication claim is added.
+
 ## Known Limitations
 
 - The current records cover diagnostic linear systems, small algebraic
-  FDFD + GMRES integration tests, and single-mode/two-mode continuous-RHS refinement
-  study; a user-facing application workflow is absent.
+  FDFD + GMRES integration tests, square single-mode/two-mode refinement, and
+  one rectangular continuous-RHS refinement study; a user-facing workflow is absent.
 - Spatial order has been measured for one mode and one two-mode mixture on
-  square nonresonant grids; broader spatial studies remain open.
+  square grids and one mode on one rectangle, all nonresonant; broader studies remain open.
 - Near-resonance conditioning has not been systematically swept.
 - No preconditioning, large-scale scalability, or performance result is
   available.
@@ -600,8 +743,8 @@ test workflows. No production numerical kernel or manuscript is changed.
 
 - How do the verified algebraic, single-mode, and two-mode continuous-RHS baselines extend
   to a user-facing reproducible workflow?
-- Does the observed spatial order persist for broader modal mixtures, rectangular grids,
-  anisotropic refinement, and indefinite nonresonant operators?
+- Does the observed spatial order persist for broader modal mixtures, other aspect
+  ratios, unequal-rate directional refinement, and indefinite nonresonant operators?
 - How do continuous and discrete resonance proximity affect conditioning,
   residuals, and forward error?
 - Which preconditioners improve Helmholtz iteration counts without obscuring

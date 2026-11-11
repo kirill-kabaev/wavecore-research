@@ -1,6 +1,6 @@
 # Technical Decisions
 
-This page explains choices evidenced by the current Stage 5A/5B sources and
+This page explains choices evidenced by the current Stage 5A/5B and Stage 5C sources and
 [experiment records](research-log.md). It documents the current rationale;
 it does not reconstruct undocumented historical discussions or approval dates.
 
@@ -8,8 +8,9 @@ it does not reconstruct undocumented historical discussions or approval dates.
 
 The model is the homogeneous, isotropic, lossless TM_z Helmholtz problem
 with time convention exp(-i omega t), zero Dirichlet/PEC walls, and
-A_h=-Delta_h-k squared I. The experiments use a unit square in metres and
-k=1 inverse metre. Grid dimensions count interior nodes, h=1/(n+1), with
+A_h=-Delta_h-k squared I. Stage 5B uses a unit square; Stage 5C.2 adds a
+1 m by 1.5 m rectangle, both with k=1 inverse metre. Grid dimensions count
+interior nodes, hx=Lx/(nx+1), hy=Ly/(ny+1), with
 x-fastest storage p=j*nx+i.
 
 For a smooth zero-boundary sine mode phi_mn, continuous forcing is
@@ -39,7 +40,7 @@ inputs and arithmetic; it is not a pure exact-arithmetic iteration error. The
 second is the spatial discretization error. Both are measured in absolute
 weighted L2(h)=sqrt(hx hy sum |e| squared) and Linf=max |e|.
 
-Both tests require actual numerical/algebraic errors <=0.1% of spatial errors
+All three convergence tests require actual numerical/algebraic errors <=0.1% of spatial errors
 in both norms. They also check a conservative residual/rounding-aware L2
 budget. This prevents a small residual alone from being interpreted as adequate
 forward accuracy. The residual is recomputed using a fresh public CSR matvec
@@ -97,12 +98,34 @@ square metres. Extreme sine-mode eigenvalues give kappa_2 for these real
 symmetric matrices. The tests use this gap to relate a residual to an L2
 forward-error scale and to check adequate separation from spatial error.
 
+The rectangular experiment independently derives the bound
+delta_h>=4/Lx squared + 4/Ly squared - k squared=43/9 inverse square metres.
+The existing square-specific spectral predicate is not generalized or reused.
+
 These spectral formulas depend on the rectangular, uniform, constant-coefficient
 Dirichlet model. They do not validate irregular grids, heterogeneous media,
 radiation boundaries, PML, or general nonnormal complex operators. The
 64 epsilon kappa_2 rounding allowance is an experiment-specific conservative
 budget, not a universal numerical-stability theorem. Near-resonance studies,
 preconditioning, and scalability remain separate roadmap work.
+
+## Rectangular convergence without changing Stage 5B
+
+Stage 5C.2 uses Lx=1, Ly=1.5, mode (1,1), k=1 and interior grids
+7x5,15x11,31x23,63x47. Both spacings halve exactly; hx/hy remains 1/2.
+This tests unequal spacings and lengths without claiming unequal refinement rates.
+The norm weight is sqrt(hx hy); sine orthogonality independently gives the
+reference L2 norm sqrt(Lx Ly)/2. Continuous RHS and modal references are checked
+using physical coordinates and lengths rather than production eigenvalue helpers.
+
+Before the first solve the analytic modal error formula predicted orders
+2.011105127551421, 2.002768065401026, 2.000691504867757. These are within the
+existing single-mode order intervals, so the applicable acceptance functions
+are reused unchanged. Neither the helper nor earlier experiments are modified.
+The new test additionally checks an independent long-double product over stored
+CSR entries alongside the fresh public CSR matvec; the two residuals distinguish
+sparse-product rounding from solver bookkeeping. Raw rectangular results use
+a separate CSV. See the [pre-run protocol and results](research-log.md#stage-5c2-rectangular-grid-convergence).
 
 ## Verification and diagnostics
 

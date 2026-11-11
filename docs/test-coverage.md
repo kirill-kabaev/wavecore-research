@@ -22,12 +22,18 @@ The five unit-test names above are complemented by four integration tests:
 |---|---|---|---|---|
 | `wavecore.integration.small`, `wavecore.integration.medium`, `wavecore.integration.altered`, `wavecore.integration.restarted` / `test_integration.cpp` | End-to-end FDFD + GMRES | Nonresonant discrete spectrum; assembly and manufactured algebraic RHS consistency; zero-start solve; explicit CONVERGED status; independently recomputed CSR residual; separate relative solution error; finite solution/history; global iteration limit; actual restart in the mixed-mode case. | Compose existing public APIs. Form `b = A_h*u_exact`, cross-check the modal algebraic RHS, run GMRES, then use a fresh CSR matvec and long-double norm accumulation. Require residual <= `1e-12` and solution error <= `2*kappa_2*(1e-12 + 64*epsilon_double)`. | Small fixed grids, homogeneous Dirichlet conditions, and algebraic forcing only. Single-mode cases are eigenvectors and can converge in one step; the three-mode case exercises GMRES(2) restarts. No spatial-convergence claim. |
 
-Two spatial-convergence experiments complement those nine registrations:
+Three spatial-convergence experiments complement those nine registrations:
 
 | Test / CTest name | Component | Verified properties | Test methodology | Limitations |
 |---|---|---|---|---|
 | `wavecore.convergence` / `test_convergence.cpp` | Continuous-RHS FDFD + GMRES grid convergence | Four exactly halved grid spacings; continuous forcing checked against an independent PDE formula; nonresonant positive spectrum; CONVERGED status; independently recomputed true residual; weighted L2 and Linf errors; decreasing errors; orders in both norms consistent with the analytic mode prediction; algebraic error and a residual/rounding-aware L2 bound below 0.1% of spatial error. | Unit square, mode (1,1), k=1, nx=ny=7,15,31,63. Reuse public assembly, manufactured data, CSR matvec and GMRES. Compare the numerical solution with both independent long-double continuous samples and the exact discrete modal solution. Require observed order in [1.99,2.03], additionally within log2(1.001/0.999) of the exact modal order. | One smooth mode, square isotropic grids, safely subresonant k, and one platform. The eigenvector RHS makes GMRES a one-step solve; this is not a solver-performance, multimode-convergence, or near-resonance study. |
 | `wavecore.convergence.multimode` / `test_multimode_convergence.cpp` | Two-mode continuous-RHS FDFD + GMRES refinement | Mixture of modes (1,1) and (2,3) with amplitudes 1 and -0.3; continuous RHS independently checked; four nested square grids; positive spectral gap; CONVERGED and fresh CSR true residual; L2(h)/Linf total, spatial, and algebraic errors; discrete modal orthogonality identity for L2; actual and budgeted algebraic L2 errors below 0.1% of spatial L2 error; actual algebraic Linf below 0.1%; decreasing errors and orders consistent with separate analytic predictions; more than one GMRES iteration on at least one grid. | k=1, nx=ny=7,15,31,63; zero start, tolerance=1e-11, restart=20, max_iterations=200. Compare with independent long-double continuous samples and exact discrete modal scaling. Observed orders must lie in [1.99,2.06] and within log2(1.001/0.999) of the respective analytic orders. | Two fixed real modes on square grids, one nonresonant k, one environment. Linf maxima can move between nodes. This case does not force restart, test general multimode data, or establish solver scalability. |
+
+The rectangular extension is registered separately:
+
+| Test / CTest name | Component | Verified properties | Test methodology | Limitations |
+|---|---|---|---|---|
+| `wavecore.convergence.rectangular` / `test_rectangular_convergence.cpp` | Rectangular continuous-RHS FDFD + GMRES refinement | Lx=1, Ly=1.5, nx!=ny, hx!=hy; exact joint halving; independent indexing/coordinates, continuous RHS and discrete modal reference; full positive spectral gap; correct sqrt(hx hy) norm weight; finite metrics; CONVERGED, independent wide-CSR and fresh public-CSR residuals; separate algebraic/spatial errors; decreasing errors and second-order agreement with pre-run predictions. | Grids 7x5,15x11,31x23,63x47, mode (1,1), k=1. Reuse applicable shared acceptance functions unchanged; use a rectangle-specific analytic gap bound rather than the square-specific helper. Check spatial norm identities and observed orders against independently derived predictions with the original 0.1% contamination allowance. | One rectangle, one eigenvector RHS, fixed hx/hy=1/2, one platform. No unequal-rate refinement, near-resonance, multimode rectangular study, or solver-performance claim. |
 
 An additional persistent acceptance regression uses the same test-only policy
 functions as both convergence drivers:
@@ -36,13 +42,15 @@ functions as both convergence drivers:
 |---|---|---|---|---|
 | `wavecore.verification.acceptance` / `test_verification_checks.cpp` | Stage 5B acceptance policy | Valid metrics accepted; NOT_CONVERGED/BREAKDOWN rejected; excessive independent true residual, algebraic L2/Linf errors, error budgets, non-decreasing errors, and incompatible orders rejected; NaN/Inf rejection; inclusive endpoints and nextafter-outside boundaries; iteration limits and multiple-iteration requirement; real two-mode GMRES with max_iterations=1 cannot falsely converge. | Both existing convergence drivers call `verification_checks.hpp`. Synthetic fixtures call those same semantic checks, require the specific typed failure reason and historical condition text, and verify measurement/limit diagnostics. Unrelated exceptions propagate as failures. A separate real 7x7 continuous-RHS solve uses modes (1,1)-0.3(2,3), k=1, and a fresh CSR residual. | Synthetic metrics exercise acceptance policy, not additional PDE measurements. The limited solve is one deterministic case. This does not establish platform portability, near-resonance behavior, or universal floating-point stability. |
 
-There are twelve CTest registrations in total. The detailed Stage 5A parameters,
+There are thirteen CTest registrations in total. The detailed Stage 5A parameters,
 spectral gaps, measured results, tolerance rationale, and reproduction commands
 are recorded in the [research log](research-log.md#stage-5a-fdfd-gmres-integration).
 Stage 5B formulas, parameters, and the preserved refinement table are in the
 [grid-convergence record](research-log.md#stage-5b-grid-convergence-study).
 The separate [multimode record](research-log.md#stage-5b-hardening-multimode-convergence)
 preserves the mixture parameters, independent predictions, measurements, and CSV path.
+The [rectangular record](research-log.md#stage-5c2-rectangular-grid-convergence)
+contains the predeclared protocol, analytic and measured tables, and separate CSV path.
 
 ## Component coverage
 
@@ -71,6 +79,9 @@ preserves the mixture parameters, independent predictions, measurements, and CSV
   verifies weighted L2 and Linf second-order errors for mode (1,1) and a
   separate mixture (1,1)-0.3(2,3), with
   independent residuals and explicit solver/discretization-error separation.
+- **Rectangular convergence:** a separate four-grid study verifies continuous
+  forcing, physical-length scaling, unequal coordinate spacings, weighted norms,
+  a geometry-specific spectral bound, and spatial order for mode (1,1).
 - **Persistent acceptance regressions:** single-mode and multimode policy
   rejection paths are registered in CTest, including finite-value checks and
   boundary fixtures. These replace reliance on a one-off GDB audit for those
@@ -99,14 +110,14 @@ preserves the mixture parameters, independent predictions, measurements, and CSV
   parameter sweep or cross-platform comparison.
 - **FDFD/GMRES relationship:** algebraic manufactured systems now have dedicated
   integration tests, including a mixed-mode restarted solve. Continuous forcing
-  and spatial refinement are covered for one mode and one two-mode mixture;
-  broader mixtures, anisotropic
-  refinement, and an application-level parameter/input workflow remain gaps.
+  and spatial refinement cover square single-mode/two-mode fields and one
+  rectangular single-mode case. Broader mixtures/geometries, unequal-rate
+  directional refinement, and an application-level workflow remain gaps.
 
 ### Not yet covered
 
-- Spatial convergence for broader multimode data, rectangular/anisotropic grids, and
-  indefinite Helmholtz operators.
+- Spatial convergence for broader multimode data, other rectangular aspect
+  ratios, unequal-rate directional refinement, and indefinite Helmholtz operators.
 - Near-resonant Helmholtz parameters and systematic eigenvalue proximity tests.
 - Preconditioned solver behavior (no preconditioner exists yet).
 - Large sparse matrices, memory pressure, and scalability.
@@ -122,7 +133,7 @@ current assertions:
 | Gap | Future test type |
 |---|---|
 | Extended FDFD+GMRES integration | Extend the algebraic, single-mode, and two-mode continuous-RHS baselines to an application-level input/output workflow, preserving independent residual and solution-error checks. |
-| Broader grid refinement and convergence order | Extend the completed single-mode and two-mode square-grid studies to broader modal mixtures, rectangular/anisotropic refinement, and indefinite nonresonant operators with conditioning-aware solver tolerances. |
+| Broader grid refinement and convergence order | Extend the square single-mode/two-mode and rectangular single-mode studies to broader mixtures, other aspect ratios, unequal-rate directional refinement, and indefinite nonresonant operators with conditioning-aware solver tolerances. |
 | Near-resonance behavior | Sweep `k^2` around continuous and discrete eigenvalues, recording conditioning indicators, solver status, and residual/error separately. |
 | Preconditioning | Add controlled solver tests comparing unpreconditioned and approved preconditioned variants on identical matrices and stopping criteria. |
 | Large sparse systems | Generate reproducible larger CSR systems and test allocation limits, memory use, iteration counts, and failure handling. |
