@@ -31,4 +31,5 @@ extra_javascript:
 nav:
   - Главная: index.md
   - Публикации: publications.md
+  - C++ API: cpp-api.md
   - О проекте: about.md
