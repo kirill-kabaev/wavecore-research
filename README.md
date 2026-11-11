@@ -86,10 +86,11 @@ After configuring and building, run:
 ctest --test-dir build --output-on-failure
 ```
 
-There are eleven registered tests: `wavecore.library_metadata`, `wavecore.grid`,
+There are twelve registered tests: `wavecore.library_metadata`, `wavecore.grid`,
 `wavecore.csr_matrix`, `wavecore.assembly`, `wavecore.gmres`, four
-`wavecore.integration.*` cases, `wavecore.convergence`, and
-`wavecore.convergence.multimode`. See the [test coverage matrix](docs/test-coverage.md).
+`wavecore.integration.*` cases, `wavecore.convergence`,
+`wavecore.convergence.multimode`, and `wavecore.verification.acceptance`.
+See the [test coverage matrix](docs/test-coverage.md).
 
 ## Building Scientific Papers
 

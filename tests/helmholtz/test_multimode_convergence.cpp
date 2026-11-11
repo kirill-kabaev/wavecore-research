@@ -1,12 +1,12 @@
 #include "wavecore/helmholtz/assembly.hpp"
 #include "wavecore/helmholtz/gmres.hpp"
+#include "verification_checks.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <complex>
 #include <iomanip>
-#include <initializer_list>
 #include <iostream>
 #include <limits>
 #include <numbers>
@@ -22,36 +22,16 @@ using namespace wavecore::helmholtz;
 using Wide = std::complex<long double>;
 using Reference = std::vector<Wide>;
 
-struct Measurement {
-    std::string_view name;
-    long double value;
-    std::string_view relation;
-    long double limit;
-};
-
-void require(bool condition, std::string_view message,
-             std::initializer_list<Measurement> measurements = {}) {
-    if (!condition) {
-        std::ostringstream failure;
-        failure << std::setprecision(17) << "condition=" << message;
-        for (const auto& item : measurements) {
-            failure << "; measured[" << item.name << "]=" << item.value
-                    << "; allowed[" << item.name << "]=" << item.relation
-                    << ' ' << item.limit;
-        }
-        throw std::runtime_error(failure.str());
-    }
-}
+namespace checks = wavecore::test::verification;
+using checks::require;
+constexpr auto profile = checks::Profile::multimode;
 
 struct Norms {
     long double l2 = 0.0L;
     long double linf = 0.0L;
 
     void add(Wide value) {
-        require(std::isfinite(value.real()) && std::isfinite(value.imag()),
-                "nonfinite diagnostic vector component",
-                {{"abs(real)", std::abs(value.real()), "<= finite maximum", std::numeric_limits<long double>::max()},
-                 {"abs(imag)", std::abs(value.imag()), "<= finite maximum", std::numeric_limits<long double>::max()}});
+        checks::finite_value(value, "nonfinite diagnostic vector component");
         const auto magnitude = std::abs(value);
         l2 = std::hypot(l2, magnitude);
         linf = std::max(linf, magnitude);
@@ -138,8 +118,7 @@ void run() {
             const auto radius = modal_eigenvalue(h, static_cast<unsigned>(n),
                                                 static_cast<unsigned>(n)) - 1.0L;
             // sin(z)>=2z/pi implies lambda_min(-Delta_h)>=8, hence gap>=7.
-            require(gap >= 7.0L && radius >= gap, "nonresonant positive spectrum",
-                    {{"gap", gap, ">=", 7.0L}, {"radius", radius, ">= gap", gap}});
+            checks::spectral_bounds(gap, radius, profile);
             const auto d1 = (lambda1 - modal_eigenvalue(h, 1, 1)) / gap;
             const auto d2 = (lambda2 - modal_eigenvalue(h, 2, 3)) /
                             (modal_eigenvalue(h, 2, 3) - 1.0L);
@@ -174,13 +153,8 @@ void run() {
                       64.0L * epsilon * (lambda1 - 1.0L + std::abs(weight) * (lambda2 - 1.0L))}});
 
             const auto result = gmres(matrix, rhs, options);
-            require(result.status == GmresStatus::CONVERGED,
-                    "NOT_CONVERGED or BREAKDOWN must fail multimode convergence",
-                    {{"status (0=CONVERGED,1=NOT_CONVERGED,2=BREAKDOWN)", static_cast<long double>(result.status), "== CONVERGED", static_cast<long double>(GmresStatus::CONVERGED)}});
-            require(result.iterations > 0 && result.iterations <= options.max_iterations,
-                    "GMRES global iteration limit",
-                    {{"iterations", static_cast<long double>(result.iterations), ">", 0.0L},
-                     {"iterations", static_cast<long double>(result.iterations), "<= max_iterations", static_cast<long double>(options.max_iterations)}});
+            checks::solver_status(result.status, profile);
+            checks::iteration_limit(result.iterations, options.max_iterations);
             multiple_iterations = multiple_iterations || result.iterations > 1;
             // Fresh public CSR product; no use of reported residual for acceptance.
             const auto product = matrix.multiply(result.solution);
@@ -189,12 +163,9 @@ void run() {
             for (const auto value : rhs) {
                 rhs_norm.add(Wide(value));
             }
-            require(rhs_norm.l2 > 0.0L, "nonzero forcing",
-                    {{"RHS norm", rhs_norm.l2, ">", 0.0L}});
+            checks::nonzero_rhs(rhs_norm.l2, profile);
             const auto true_residual = residual.l2 / rhs_norm.l2;
-            require(std::isfinite(true_residual) && true_residual <= options.tolerance,
-                    "independent true residual exceeds tolerance",
-                    {{"true_residual", true_residual, "<= tolerance", options.tolerance}});
+            checks::true_residual(true_residual, options.tolerance);
 
             const auto total = difference(result.solution, continuous);
             const auto algebraic = difference(result.solution, discrete);
@@ -204,21 +175,13 @@ void run() {
             require(std::abs(spatial.l2h(h) - analytic_l2) <= 16.0L * epsilon,
                     "spatial L2 reference must agree with orthogonal mode formula",
                     {{"L2(h) identity defect", std::abs(spatial.l2h(h) - analytic_l2), "<=", 16.0L * epsilon}});
-            require(algebraic.l2 <= solver_fraction * spatial.l2 &&
-                        algebraic.linf <= solver_fraction * spatial.linf,
-                    "algebraic errors must be <=0.1% of spatial errors in both norms",
-                    {{"algebraic L2", algebraic.l2, "<=", solver_fraction * spatial.l2},
-                     {"algebraic Linf", algebraic.linf, "<=", solver_fraction * spatial.linf}});
+            checks::algebraic_error(algebraic.l2, algebraic.linf, spatial.l2, spatial.linf,
+                                    solver_fraction, profile);
             const auto algebraic_bound = residual.l2h(h) / gap +
                 64.0L * epsilon * (radius / gap) * discrete_norm.l2h(h);
-            require(algebraic.l2h(h) <= algebraic_bound &&
-                        algebraic_bound <= solver_fraction * spatial.l2h(h),
-                    "residual/rounding-aware L2 budget must not mask spatial error",
-                    {{"algebraic L2(h)", algebraic.l2h(h), "<= error budget", algebraic_bound},
-                     {"L2 error budget", algebraic_bound, "<=", solver_fraction * spatial.l2h(h)}});
-            require(true_residual <= 0.01L * spatial.l2 / continuous_norm.l2,
-                    "residual must be 100 times below relative spatial error",
-                    {{"true_residual", true_residual, "<=", 0.01L * spatial.l2 / continuous_norm.l2}});
+            checks::error_budget(algebraic.l2h(h), algebraic_bound, spatial.l2h(h),
+                                 solver_fraction, profile);
+            checks::residual_separation(true_residual, spatial.l2, continuous_norm.l2, profile);
 
             std::cout << n << ',' << n << ',' << h << ',' << result.iterations
                       << ",CONVERGED," << true_residual << ',' << total.l2h(h)
@@ -226,11 +189,8 @@ void run() {
             if (previous_h == 0.0L) {
                 std::cout << "NA,NA,NA,NA";
             } else {
-                require(total.l2h(h) < previous_total.l2h(previous_h) &&
-                            total.linf < previous_total.linf,
-                        "both errors must decrease on refinement",
-                    {{"L2(h)", total.l2h(h), "< previous L2(h)", previous_total.l2h(previous_h)},
-                         {"Linf", total.linf, "< previous Linf", previous_total.linf}});
+                checks::decreasing_error(total.l2h(h), previous_total.l2h(previous_h),
+                                         total.linf, previous_total.linf, profile);
                 const auto p_l2 = std::log2(previous_total.l2h(previous_h) / total.l2h(h));
                 const auto p_inf = std::log2(previous_total.linf / total.linf);
                 const auto predicted_l2 = std::log2(previous_spatial.l2h(previous_h) /
@@ -239,18 +199,8 @@ void run() {
                 // Analytic mixture predictions are approx. 2.0514/2.0477,
                 // 2.0126/1.9993, 2.0031/2.0029 (L2/Linf). Nodal maxima can shift.
                 // A <=0.1% solver contribution perturbs p by <=order_slack.
-                const auto check_order = [&](long double observed, long double predicted) {
-                    require(std::isfinite(observed) && predicted >= 1.99L &&
-                                predicted <= 2.06L && observed >= 1.99L && observed <= 2.06L &&
-                                std::abs(observed - predicted) <= order_slack,
-                            "observed order disagrees with analytic multimode prediction",
-                    {{"finite(observed)", std::isfinite(observed) ? 1.0L : 0.0L, "==", 1.0L},
-                             {"predicted", predicted, ">=", 1.99L}, {"predicted", predicted, "<=", 2.06L},
-                             {"observed", observed, ">=", 1.99L}, {"observed", observed, "<=", 2.06L},
-                             {"abs(observed-predicted)", std::abs(observed - predicted), "<=", order_slack}});
-                };
-                check_order(p_l2, predicted_l2);
-                check_order(p_inf, predicted_inf);
+                checks::observed_order(p_l2, predicted_l2, order_slack, profile);
+                checks::observed_order(p_inf, predicted_inf, order_slack, profile);
                 std::cout << p_l2 << ',' << p_inf << ',' << predicted_l2 << ',' << predicted_inf;
             }
             std::cout << ',' << algebraic.l2h(h) << ',' << algebraic.linf << ','
@@ -260,8 +210,7 @@ void run() {
             previous_total = total;
             previous_spatial = spatial;
         }
-        require(multiple_iterations, "at least one grid must require multiple GMRES iterations",
-                    {{"multiple_iterations", multiple_iterations ? 1.0L : 0.0L, "==", 1.0L}});
+        checks::multiple_iterations(multiple_iterations);
     } catch (const std::exception& error) {
         std::ostringstream failure;
         failure << std::setprecision(17) << "n=" << current_n

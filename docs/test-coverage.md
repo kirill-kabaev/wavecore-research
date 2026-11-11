@@ -29,7 +29,14 @@ Two spatial-convergence experiments complement those nine registrations:
 | `wavecore.convergence` / `test_convergence.cpp` | Continuous-RHS FDFD + GMRES grid convergence | Four exactly halved grid spacings; continuous forcing checked against an independent PDE formula; nonresonant positive spectrum; CONVERGED status; independently recomputed true residual; weighted L2 and Linf errors; decreasing errors; orders in both norms consistent with the analytic mode prediction; algebraic error and a residual/rounding-aware L2 bound below 0.1% of spatial error. | Unit square, mode (1,1), k=1, nx=ny=7,15,31,63. Reuse public assembly, manufactured data, CSR matvec and GMRES. Compare the numerical solution with both independent long-double continuous samples and the exact discrete modal solution. Require observed order in [1.99,2.03], additionally within log2(1.001/0.999) of the exact modal order. | One smooth mode, square isotropic grids, safely subresonant k, and one platform. The eigenvector RHS makes GMRES a one-step solve; this is not a solver-performance, multimode-convergence, or near-resonance study. |
 | `wavecore.convergence.multimode` / `test_multimode_convergence.cpp` | Two-mode continuous-RHS FDFD + GMRES refinement | Mixture of modes (1,1) and (2,3) with amplitudes 1 and -0.3; continuous RHS independently checked; four nested square grids; positive spectral gap; CONVERGED and fresh CSR true residual; L2(h)/Linf total, spatial, and algebraic errors; discrete modal orthogonality identity for L2; actual and budgeted algebraic L2 errors below 0.1% of spatial L2 error; actual algebraic Linf below 0.1%; decreasing errors and orders consistent with separate analytic predictions; more than one GMRES iteration on at least one grid. | k=1, nx=ny=7,15,31,63; zero start, tolerance=1e-11, restart=20, max_iterations=200. Compare with independent long-double continuous samples and exact discrete modal scaling. Observed orders must lie in [1.99,2.06] and within log2(1.001/0.999) of the respective analytic orders. | Two fixed real modes on square grids, one nonresonant k, one environment. Linf maxima can move between nodes. This case does not force restart, test general multimode data, or establish solver scalability. |
 
-There are eleven CTest registrations in total. The detailed Stage 5A parameters,
+An additional persistent acceptance regression uses the same test-only policy
+functions as both convergence drivers:
+
+| Test / CTest name | Component | Verified properties | Test methodology | Limitations |
+|---|---|---|---|---|
+| `wavecore.verification.acceptance` / `test_verification_checks.cpp` | Stage 5B acceptance policy | Valid metrics accepted; NOT_CONVERGED/BREAKDOWN rejected; excessive independent true residual, algebraic L2/Linf errors, error budgets, non-decreasing errors, and incompatible orders rejected; NaN/Inf rejection; inclusive endpoints and nextafter-outside boundaries; iteration limits and multiple-iteration requirement; real two-mode GMRES with max_iterations=1 cannot falsely converge. | Both existing convergence drivers call `verification_checks.hpp`. Synthetic fixtures call those same semantic checks, require the specific typed failure reason and historical condition text, and verify measurement/limit diagnostics. Unrelated exceptions propagate as failures. A separate real 7x7 continuous-RHS solve uses modes (1,1)-0.3(2,3), k=1, and a fresh CSR residual. | Synthetic metrics exercise acceptance policy, not additional PDE measurements. The limited solve is one deterministic case. This does not establish platform portability, near-resonance behavior, or universal floating-point stability. |
+
+There are twelve CTest registrations in total. The detailed Stage 5A parameters,
 spectral gaps, measured results, tolerance rationale, and reproduction commands
 are recorded in the [research log](research-log.md#stage-5a-fdfd-gmres-integration).
 Stage 5B formulas, parameters, and the preserved refinement table are in the
@@ -64,6 +71,14 @@ preserves the mixture parameters, independent predictions, measurements, and CSV
   verifies weighted L2 and Linf second-order errors for mode (1,1) and a
   separate mixture (1,1)-0.3(2,3), with
   independent residuals and explicit solver/discretization-error separation.
+- **Persistent acceptance regressions:** single-mode and multimode policy
+  rejection paths are registered in CTest, including finite-value checks and
+  boundary fixtures. These replace reliance on a one-off GDB audit for those
+  paths; the historical Stage 5B CSV files and acceptance thresholds are unchanged.
+  Diagnostic regressions require the complete `condition` field before
+  `; measured[`, reject prefix-only matches and missing delimiters, and retain
+  the typed failure reason as the primary contract. Helper preconditions and
+  first-failure ordering are documented in the test-only header.
 
 ### Partially covered
 
