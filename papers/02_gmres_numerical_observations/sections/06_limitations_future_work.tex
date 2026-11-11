@@ -1,0 +1,65 @@
+\section{Limitations and planned Helmholtz integration}
+
+The present evidence has the following explicit limitations.
+\begin{itemize}
+    \item The matrices are small, deterministic diagnostic examples. They do not
+    represent the dimensions, spectra, nonnormality, or memory traffic of a
+    production sparse wave problem.
+    \item Only one compiler/platform run is reported. No cross-platform rounding
+    study, sanitizer run, performance benchmark, or statistical ensemble is
+    included.
+    \item The solver is sequential and unpreconditioned. No claim is made about
+    practical iteration counts for indefinite Helmholtz systems.
+    \item Orthogonality is observed by internal test instrumentation and checked
+    with extended-precision accumulation, but the experiment is not a formal
+    rounding-error analysis.
+    \item The true residual is recomputed in double precision. Severe cancellation,
+    underflow, or overflow can still limit its reliability; detected nonfinite
+    arithmetic is rejected, but all finite extreme cases cannot be covered.
+    \item A small residual alone cannot certify a small solution error for an
+    ill-conditioned system. Condition estimation is not implemented.
+\end{itemize}
+
+\subsection{Data required for iteration plots}
+
+The current tests print the final residual estimate, the final independent wide
+residual, the maximum estimate--solver-residual gap, and the maximum two-pass
+orthogonality defect. The public result retains the solver's residual history
+only in memory. The one-pass control returns a single final defect. These
+aggregates do not determine iteration curves, so no such curves are inferred
+from them in this manuscript.
+
+An estimate-versus-true-residual plot would require exporting each observer
+sample as a row containing the case, total iteration, restart cycle, local step,
+$\widehat{\rho}_t$, $\rho_{\mathrm{solver},t}$, basis size, and breakdown flag.
+A separate per-step wide residual would require access to each candidate
+solution, which the present observer does not expose. The plot must label the
+double-precision recomputation and the wide oracle distinctly.
+
+An orthogonality plot would require collecting
+$\lVert W_t^H W_t-I\rVert_F$ at every step of the production run and of the
+local one-pass control, using the same Hilbert matrix, right-hand side, step
+range, and basis-size convention. To isolate the effect of the MGS pass count,
+the product and norm routines should also be matched. Raw CSV data and the
+revision, compiler, flags, precision, and solver options should accompany any
+figures. Zero values must be shown explicitly or identified as omitted on
+logarithmic axes, not replaced by invented positive measurements. Producing
+these traces requires additional test instrumentation and a repeated run; it
+does not require changing the numerical solver algorithm.
+
+\subsection{Integration with FDFD Helmholtz}
+
+The next application target is the WaveCore five-point FDFD discretization of
+$-\Delta u-k^2u=f$ with homogeneous Dirichlet boundaries. Integration should
+first use manufactured solutions away from both continuous and discrete
+resonances. Each run should record grid dimensions, $k$, restart length, tolerance,
+iteration limit, solver status, complete residual history, independently
+recomputed algebraic residual, and error against the manufactured solution.
+Grid-refinement studies must separate discretization error from GMRES iteration
+error. Near resonances, the experiment should report conditioning indicators and
+must not infer field accuracy from residual size alone.
+
+Only after this unpreconditioned baseline is verified should preconditioning be
+introduced. Candidate preconditioners and performance changes will require
+separate hypotheses, numerical-equivalence checks, and measurements; none are
+evaluated in the present article.

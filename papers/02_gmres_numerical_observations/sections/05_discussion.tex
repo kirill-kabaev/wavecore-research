@@ -1,0 +1,68 @@
+\section{Discussion}
+
+\subsection{Residual accuracy is not solution accuracy}
+
+The most important observation is the separation between a small residual and a
+small forward error. For the near-singular diagonal system, the component
+associated with $10^{-14}$ contributes only $10^{-14}$ to the unnormalized
+residual when it is unresolved. With a tolerance of $10^{-12}$, the solver
+therefore returns convergence after one iteration even though
+$\eta_x=0.7071$. This is expected conditioning behavior, not a contradiction of
+the stopping rule.
+
+The complex Hilbert experiment is less extreme but qualitatively similar:
+$\rho=5.610\times10^{-15}$ accompanies a $5.47\%$ relative solution error. A
+residual is a backward-error-like observable; it is not the usual normwise
+backward error $\lVert b-Ax\rVert_2/(\lVert A\rVert_2\lVert x\rVert_2+
+\lVert b\rVert_2)$. For nonsingular $A$, nonzero $x_\star$, and $b=Ax_\star$,
+\begin{equation}
+    \eta_x\leq\kappa_2(A)\rho(x),\qquad
+    \kappa_2(A)=\lVert A\rVert_2\lVert A^{-1}\rVert_2.
+\end{equation}
+For the tests' rounded right-hand side, write $\delta b=b-Ax_\star$; then
+\begin{equation}
+    \lVert x-x_\star\rVert_2\leq\lVert A^{-1}\rVert_2
+       \bigl(\lVert b-Ax\rVert_2+\lVert\delta b\rVert_2\bigr).
+\end{equation}
+Both the residual and right-hand-side formation error can therefore be amplified
+by conditioning. General finite-precision and conditioning principles are
+reviewed by Higham \cite{higham_2002}. Consequently,
+future experiment reports must retain both $\rho$ and $\eta_x$ whenever a trusted
+reference solution is available.
+
+\subsection{Estimated and true residuals}
+
+The small least-squares problem can yield a much more optimistic residual estimate
+than a fresh evaluation of $b-Ax$. For the nonnormal Jordan-like system, the last
+estimate was $6.079\times10^{-33}$ while the independently accumulated true
+residual was $1.368\times10^{-16}$. In the unscaled $3\times3$ system, the
+corresponding pair was $4.284\times10^{-32}$ and
+$1.608\times10^{-16}$.
+
+The latter system was repeated with a deliberately stringent tolerance
+$10^{-30}$. The estimate crossed the tolerance, but the true residual did not;
+the solver returned \texttt{BREAKDOWN} after three iterations rather than
+\texttt{CONVERGED}. This tolerance was not attained in the reported run; it is
+not claimed to be unattainable for every double-precision system. The maximum
+absolute gap between the estimate and the solver's double-precision residual,
+$\max_t|\widehat{\rho}_t-\rho_{\mathrm{solver},t}|$, was
+$1.665\times10^{-16}$. The independent wide residual is the final value quoted
+above, not a history recorded at each step. Thus, in this reproducible example,
+the independent residual guard prevents false convergence. It does not eliminate
+roundoff from the true-residual computation itself, which remains a double-
+precision CSR matrix--vector product.
+
+\subsection{Restart and breakdown behavior}
+
+Restart length changes the available minimization space. The skew-symmetric
+$2\times2$ example demonstrates exact GMRES(1) stagnation, whereas restart two
+recovers the exact solution in two iterations. Other baseline systems converge
+with restart one or two, but require 27 and 19 total iterations, respectively.
+These cases verify cycle continuation and global iteration accounting without
+supporting a general convergence-rate claim.
+
+The implementation distinguishes a true-residual success at near-breakdown from
+breakdown without convergence. Identity-like cases exercise happy breakdown; the
+inconsistent zero-operator case returns \texttt{BREAKDOWN} with residual one.
+This status communicates that the Krylov process cannot supply another useful
+direction under the implemented threshold.

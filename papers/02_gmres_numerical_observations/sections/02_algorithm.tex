@@ -1,0 +1,132 @@
+\section{Implemented restarted GMRES algorithm}
+
+We solve
+\begin{equation}
+    A x = b, \qquad A\in\mathbb{C}^{n\times n},
+    \quad x,b\in\mathbb{C}^{n},
+\end{equation}
+without preconditioning. Superscript $H$ denotes conjugate transpose, a bar denotes
+scalar complex conjugation, and $\mathrm{i}^2=-1$. Vector norms are Euclidean:
+$\lVert z\rVert_2=(\sum_{\ell=1}^n |z_\ell|^2)^{1/2}$. The implementation
+accumulates norms with successive \texttt{hypot} calls rather than squaring all
+entries directly. At the start of each restart cycle, let $x_{\mathrm{base}}$
+denote the current approximation and set $r=b-Ax_{\mathrm{base}}$ and
+$\beta=\lVert r\rVert_2$; in the first cycle $x_{\mathrm{base}}=x_0$ is the
+user's initial guess. The stopping test is applied before normalization;
+only if another iteration is required is $v_1=r/\beta$ formed. Complex vectors
+use the Hermitian inner product
+\begin{equation}
+    \langle v,w\rangle = v^{H}w
+    = \sum_{i=1}^{n}\overline{v_i}\,w_i.
+    \label{eq:hermitian-product}
+\end{equation}
+The conjugation of the first argument in Eq.~\eqref{eq:hermitian-product} is
+explicit in both the production implementation and the independent test
+diagnostics.
+
+Within a cycle, $j$ is the one-based Arnoldi step and
+$V_j=[v_1,\ldots,v_j]\in\mathbb{C}^{n\times j}$. At step $j$, the implementation
+initializes $w=Av_j$ and $h_{ij}=0$ for $1\leq i\leq j$. For each of two complete
+modified Gram--Schmidt (MGS) passes, and sequentially for $i=1,\ldots,j$, it uses
+\begin{align}
+    \alpha &\leftarrow \langle v_i,w\rangle,\\
+    h_{ij} &\leftarrow h_{ij}+\alpha,\qquad
+    w\leftarrow w-\alpha v_i.
+\end{align}
+The same saved projection $\alpha$ is used in both updates. Set
+$h_{j+1,j}=\lVert w\rVert_2$. If no near-breakdown is detected, the new vector is
+$v_{j+1}=w/h_{j+1,j}$. In exact arithmetic, away from breakdown,
+$AV_j=V_{j+1}\underline{H}_j$, where
+$\underline{H}_j\in\mathbb{C}^{(j+1)\times j}$ is upper Hessenberg. The underline
+denotes the rectangular Hessenberg matrix, not conjugation. This relation is
+subject to rounding errors in the implementation. Reorthogonalization is a safeguard in
+this implementation; finite-precision properties of MGS-GMRES and loss of
+orthogonality are treated in detail by Paige, Rozlo\v{z}n\'{i}k, and
+Strako\v{s} \cite{paige_rozloznik_strakos_2006}.
+
+The Arnoldi relation gives the reduced least-squares problem
+\begin{equation}
+    y_j = \arg\min_{y\in\mathbb{C}^j}
+    \left\lVert \beta e_1-\underline{H}_j y\right\rVert_2,
+    \qquad x_j=x_{\mathrm{base}}+V_j y_j.
+    \label{eq:least-squares}
+\end{equation}
+Here $e_1\in\mathbb{R}^{j+1}$ is the first coordinate vector, and $x_j$ is the
+candidate within the current cycle. The upper-Hessenberg matrix is reduced by
+left multiplication with complex unitary Givens rotations
+\begin{equation}
+    G = \begin{bmatrix}c&s\\-s^{\ast}&c\end{bmatrix},
+    \qquad c\in\mathbb{R},\quad s\in\mathbb{C},\quad c^2+|s|^2=1.
+    \label{eq:givens}
+\end{equation}
+The scalar $s^{\ast}=\overline{s}$ is explicitly conjugated; thus $G^H G=I_2$.
+For entries $a,b\in\mathbb{C}$ to be rotated, the code sets
+$d=\operatorname{hypot}(|a|,|b|)$ and, when both entries are nonzero,
+\begin{equation}
+    c=\frac{|a|}{d},\qquad
+    s=\frac{a}{|a|}\frac{\overline{b}}{d},\qquad
+    G\begin{bmatrix}a\\b\end{bmatrix}
+      =\begin{bmatrix}(a/|a|)d\\0\end{bmatrix}.
+\end{equation}
+If $b=0$, it uses $(c,s)=(1,0)$, including $a=b=0$. If $a=0$ and
+$b\ne0$, the code returns
+\[
+    c=0,\qquad s=\frac{\overline{b}}{|b|},\qquad
+    G\begin{bmatrix}0\\b\end{bmatrix}
+      =\begin{bmatrix}sb\\0\end{bmatrix}
+      =\begin{bmatrix}\overline{b}b/|b|\\0\end{bmatrix}
+      =\begin{bmatrix}|b|\\0\end{bmatrix}.
+\]
+The conjugate in $s$ fixes the phase of the first entry to the nonnegative real
+number $|b|$. For example, $b=\mathrm{i}$ gives $s=-\mathrm{i}$ and
+$s b=(-\mathrm{i})\mathrm{i}=1$. In contrast, $s=b/|b|$ would produce
+$b^2/|b|$ (equal to $-1$ for $b=\mathrm{i}$) and is not the convention used by
+\texttt{make\_rotation} and \texttt{rotate}.
+Previous rotations are applied to each new Hessenberg column, and the new
+rotation is applied both to that column and to the reduced right-hand side.
+Triangular back substitution then solves the nonsingular reduced system.
+
+A restart cycle allows at most $\min(m,n,N_{\max}-N)$ Arnoldi steps, where $m$
+is the requested restart length, $N$ is the total completed iteration count at
+cycle entry, and $N_{\max}$ is the global limit. Convergence or breakdown may
+end a cycle earlier. The last approximation of a completed cycle becomes the
+next cycle's base point.
+
+\subsection{Stopping and diagnostic rules}
+
+Use a common normalization for recomputed and estimated residuals:
+\begin{equation}
+    D_b=\begin{cases}\lVert b\rVert_2,&b\ne0,\\1,&b=0,\end{cases}
+    \qquad \rho(x)=\frac{\lVert b-Ax\rVert_2}{D_b}.
+    \label{eq:true-residual}
+\end{equation}
+For $b\ne0$, this is relative; for the exact zero right-hand side it is absolute.
+Let $g^{(j)}$ be the reduced vector $\beta e_1$ after the first $j$ embedded
+Givens rotations. The least-squares residual estimate is
+\begin{equation}
+    \widehat{\rho}_j=
+    \frac{|g^{(j)}_{j+1}|}{D_b}.
+\end{equation}
+The solver never uses this estimate to declare convergence. It recomputes
+$b-Ax_j$ in double precision with a CSR product after each candidate update and
+returns \texttt{CONVERGED} only if the computed $\rho(x_j)\leq\tau$, where
+$\tau>0$ is the finite user tolerance. The same check at the initial guess can
+return success with zero iterations. These computed residuals, including the
+initial value, form the public residual history; they are not exact-arithmetic
+residuals or the independent wider-precision test values.
+
+Near-breakdown is flagged when
+\begin{equation}
+    \lVert w\rVert_2 \leq
+    16\,\epsilon_{\mathrm{double}}\,\lVert Av_j\rVert_2.
+\end{equation}
+Here $w$ is the remainder after both MGS passes, and
+$\epsilon_{\mathrm{double}}=2^{-52}$ is the spacing above one in the reported
+binary64 environment. If back substitution succeeds, convergence is checked
+before this flag terminates the solve: a residual meeting the tolerance gives
+happy breakdown; otherwise the status is \texttt{BREAKDOWN}. An exactly zero
+diagonal in the rotated triangular problem also returns \texttt{BREAKDOWN},
+retaining the previous approximation and repeating its residual in the history.
+Exhausting $N_{\max}$ returns \texttt{NOT\_CONVERGED}. Invalid dimensions or
+options are rejected, and detected nonfinite arithmetic raises an exception
+rather than returning success.

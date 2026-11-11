@@ -1,0 +1,88 @@
+\section{Measured results}
+
+Table~\ref{tab:principal} reports independently recomputed errors and residuals.
+Status abbreviations are C for \texttt{CONVERGED}, NC for
+\texttt{NOT\_CONVERGED}, and B for \texttt{BREAKDOWN}. All displayed digits are
+rounded from the deterministic test output; they should not be interpreted as
+uncertainty estimates.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Principal diagnostic systems.}
+\label{tab:principal}
+\begin{tabular}{lrrrrr}
+\toprule
+System & Iter. & Status & $\eta_x$ & $\rho$ & $\delta_V$ \\
+\midrule
+Complex Hilbert(10) & 9 & C
+    & $5.473\times10^{-2}$ & $5.610\times10^{-15}$ & $5.453\times10^{-16}$ \\
+Near-singular diagonal & 1 & C
+    & $7.071\times10^{-1}$ & $1.000\times10^{-14}$ & $0$ \\
+Nonnormal Jordan-like & 6 & C
+    & $2.860\times10^{-15}$ & $1.368\times10^{-16}$ & $4.526\times10^{-16}$ \\
+GMRES(1) stagnation & 5 & NC
+    & $1$ & $1$ & $0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For Complex Hilbert(10), a local one-pass MGS control built only for the test
+produced a final nine-vector defect of $1.022\times10^{-4}$ after eight Arnoldi
+steps. The actual two-pass production basis reached a maximum defect of
+$5.453\times10^{-16}$ in the corresponding diagnostic solve. This comparison is
+specific to this matrix and execution. The one-pass endpoint and two-pass maximum
+have different aggregation rules, and the controls also differ in product and
+norm implementation as described above. They do not prove a universal bound for
+two-pass MGS.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Finite scaling experiment; restart was requested as 99 and capped at
+$n=3$.}
+\label{tab:scaling}
+\begin{tabular}{rrrrrr}
+\toprule
+Scale & Iter. & $\eta_x$ & $\rho$ & $\widehat{\rho}$ & $\delta_V$ \\
+\midrule
+$10^{-200}$ & 3 & $4.276\times10^{-16}$ & $2.716\times10^{-16}$
+    & $1.534\times10^{-33}$ & $2.076\times10^{-16}$ \\
+$1$ & 3 & $1.711\times10^{-16}$ & $1.608\times10^{-16}$
+    & $4.284\times10^{-32}$ & $6.618\times10^{-16}$ \\
+$10^{200}$ & 3 & $1.763\times10^{-16}$ & $1.443\times10^{-16}$
+    & $2.995\times10^{-33}$ & $2.913\times10^{-16}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The three scaling cases in Table~\ref{tab:scaling} converged in three iterations
+with the requested tolerance $10^{-12}$. These observations establish coverage of
+the selected finite scales, not scale invariance for arbitrary matrices or data.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Stopping and restart boundary cases.}
+\label{tab:stopping}
+\begin{tabular}{lrrrr}
+\toprule
+Case & Restart & $N_{\max}$ & Iter. & Status / final $\rho$ \\
+\midrule
+Complex $3\times3$ baseline & 1 & 100 & 27 & C / $3.803\times10^{-13}$ \\
+Diagonal $4\times4$ baseline & 2 & 100 & 19 & C / $7.170\times10^{-13}$ \\
+Skew system & 1 & 5 & 5 & NC / $1$ \\
+Skew system & 2 & 1 & 1 & NC / $1$ \\
+Skew system & 2 & 2 & 2 & C / $0$ \\
+Inconsistent zero operator & 2 & 10 & 1 & B / $1$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The first two rows and the zero-operator row report independently computed dense
+double residuals; the skew rows use the wide diagnostic oracle. A repeated run
+reproduced all displayed measured values; the dimension and iteration-limit
+metadata above follow the executable test options.
+Table~\ref{tab:stopping} confirms that the total count, rather than a per-restart
+count, is compared with $N_{\max}$. The exact GMRES(1) stagnation case retains
+$\rho=1$ in every history entry and terminates without a false success.

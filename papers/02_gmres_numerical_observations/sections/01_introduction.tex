@@ -1,0 +1,23 @@
+\section{Introduction}
+
+The generalized minimal residual method (GMRES) constructs approximations in a
+Krylov subspace and minimizes a residual norm through a small least-squares
+problem \cite{saad_schultz_1986}. Its use for nonsymmetric and complex-valued
+systems makes implementation details---orthogonalization, least-squares updates,
+stopping rules, and restarting---numerically consequential. The Arnoldi process
+underlying GMRES originates in the construction of orthogonal Krylov bases
+\cite{arnoldi_1951}; standard algorithmic treatments are given by
+Saad \cite{saad_2003}.
+
+This article records the first numerical observations from the WaveCore Research
+GMRES implementation. The scope is deliberately narrow: deterministic dense test
+matrices are converted to the project's complex CSR format and solved by the same
+public routine intended for later sparse applications. Internal instrumentation
+observes the actual Arnoldi basis without changing the returned solution or
+status. The objectives are to verify implementation-level invariants, identify
+failure modes before coupling the solver to a Helmholtz discretization, and retain
+a traceable account of measured values.
+
+No new GMRES variant or general stability theorem is proposed. In particular,
+successful behavior on these small systems does not establish robustness for all
+matrix classes, dimensions, restart lengths, or floating-point environments.

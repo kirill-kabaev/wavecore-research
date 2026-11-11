@@ -1,0 +1,61 @@
+% !TeX program = lualatex
+% !TeX root = main.tex
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{english}
+\setmainfont{CMU Serif}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage[hidelinks]{hyperref}
+\usepackage[
+    backend=biber,
+    style=numeric,
+    sorting=none
+]{biblatex}
+
+\addbibresource{references.bib}
+\geometry{margin=25mm}
+
+\title{Numerical Robustness of Restarted GMRES for Complex-Valued Linear Systems:\\
+Preliminary Computational Experiments}
+\author{Kirill Kabaev\\WaveCore Research}
+\date{November 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This preliminary study documents reproducible numerical checks of a sequential,
+unpreconditioned restarted GMRES implementation for complex-valued sparse linear
+systems. The implementation uses the Arnoldi process with a Hermitian inner
+product, two passes of modified Gram--Schmidt orthogonalization, complex Givens
+rotations, and an explicit true-residual check after every iteration. Small
+deterministic systems probe nonnormality, ill-conditioning, restart-induced
+stagnation, loss of orthogonality, extreme finite scaling, and disagreement
+between the least-squares residual estimate and the recomputed residual. The
+experiments show why residual accuracy and forward solution accuracy must be
+reported separately. They also demonstrate, for the tested cases, that an
+optimistic internal estimate does not produce a false convergence status. These
+observations are verification evidence for one implementation; they are not a
+claim of general numerical stability or scientific novelty.
+\end{abstract}
+
+\input{sections/01_introduction}
+\input{sections/02_algorithm}
+\input{sections/03_methodology}
+\input{sections/04_results}
+\input{sections/05_discussion}
+\input{sections/06_limitations_future_work}
+\input{sections/07_conclusions}
+
+\printbibliography
+
+\end{document}

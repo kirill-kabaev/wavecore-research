@@ -1,0 +1,167 @@
+\section{Computational methodology}
+
+The reported values were reproduced from the deterministic CTest executable
+\nolinkurl{wavecore_gmres_test} at Git revision
+\nolinkurl{26bf63a73a7201c36d6e6d6933942624ef74d9de}. The run used GCC~13.3.0 and
+CMake~3.28.3 on x86-64 Ubuntu under WSL2. The production vectors store
+double-precision C++ complex numbers (53 binary significand bits). The build uses
+C++20 in Debug mode, with \texttt{-g -Wall -Wextra -Wpedantic} and no explicit
+optimization flag. Test-side residuals, solution errors, and basis inner products
+for the extended diagnostic systems are accumulated independently with
+\texttt{std::complex<long double>} before conversion to the reported decimal
+values; \texttt{long double} has 64 significand bits on this platform. Baseline
+tests instead recompute residuals with independent dense double arithmetic.
+All computations are sequential and deterministic; no random seed is required.
+The revision identifies the solver, diagnostics, tests, and CMake sources, not a
+committed version of this manuscript.
+
+For a prescribed reference vector $x_\star$, each right-hand side is formed by
+the independent dense routine in double precision:
+$b=\operatorname{fl}(Ax_\star)$. Thus $x_\star$ is the intended solution of the
+mathematical construction; it need not be the exact solution of the stored
+rounded system. The independently evaluated relative reference error is
+\begin{equation}
+    \eta_x=\frac{\lVert x-x_\star\rVert_2}{\lVert x_\star\rVert_2},
+\end{equation}
+and the independently evaluated residual uses Eq.~\eqref{eq:true-residual} with
+the stored $A$, $b$, and computed $x$. The wide oracle reduces arithmetic error
+in verification; it does not recover unrounded inputs. In the tables, $\rho$
+denotes this independent residual, whereas $\rho_{\mathrm{solver}}$ denotes the
+double-precision value used by the solver's stopping test.
+
+At observer sample $t$, after a nonsingular reduced solve, define the diagnostic
+matrix $W_t$ as the current $V_j$ augmented by $w/\lVert w\rVert_2$ if no
+near-breakdown is detected; otherwise set $W_t=V_j$. This includes the prospective
+next vector even when the iteration has just converged or ended a cycle. With
+$q_t$ columns in $W_t$, the diagnostic records
+\begin{equation}
+    \delta_V=\max_t\lVert W_t^H W_t-I_{q_t}\rVert_F,
+    \qquad \lVert M\rVert_F=
+        \left(\sum_{a,b}|M_{ab}|^2\right)^{1/2}.
+    \label{eq:orthogonality}
+\end{equation}
+Instrumentation is internal to the tests. A paired assertion verifies that it
+does not change the public solver's status, iterations, solution, or residual
+history. The maximum spans all observer samples and restart cycles, not the
+public residual-history index. The one-pass control instead reports the final
+defect of its nine-vector basis after eight Arnoldi steps; it does not take a
+maximum over iterations. The reported maximum residual-estimate gap is
+$\max_t|\widehat{\rho}_t-\rho_{\mathrm{solver},t}|$, using the double-precision
+recomputed residual at each observer call, not the final wide oracle.
+
+\subsection{Matrices and solver parameters}
+
+The principal diagnostic systems are as follows.
+\begin{itemize}
+    \item \textbf{Complex Hilbert(10):}
+    $A_{ij}=\exp(0.3\mathrm{i}(i-j))/(i+j+1)$ for zero-based $i,j$, a unitary
+    diagonal similarity of the real Hilbert matrix in exact arithmetic. The reference is
+    $(x_\star)_i=1+0.25\mathrm{i}(i\bmod 3)$.
+    \item \textbf{Near-singular diagonal:}
+    $A=\operatorname{diag}(1,10^{-14})$ and $x_\star=(1,1)^T$. The stated
+    mathematical matrix has exact 2-norm condition number $10^{14}$.
+    \item \textbf{Complex nonnormal Jordan-like matrix:} a $6\times6$ upper
+    bidiagonal matrix with diagonal $1+0.5\mathrm{i}$ and superdiagonal
+    $2-\mathrm{i}$; $(x_\star)_i=(i+1)-0.25\mathrm{i}$.
+    \item \textbf{Scaled complex matrix:} $A=\sigma B$ for
+    $\sigma\in\{10^{-200},1,10^{200}\}$, where
+    \begin{equation}
+        B=\begin{bmatrix}
+            4+\mathrm{i}&1-2\mathrm{i}&1/2\\
+            \mathrm{i}&5-\mathrm{i}&-1+\mathrm{i}/2\\
+            2&-\mathrm{i}&6+2\mathrm{i}
+        \end{bmatrix},\qquad
+        x_\star=\begin{bmatrix}1+2\mathrm{i}\\-2+\mathrm{i}/2\\1/4-\mathrm{i}\end{bmatrix}.
+    \end{equation}
+    The residual-gap experiment uses $B$ and this same reference vector.
+    \item \textbf{Restart stagnation:}
+    $A=\left[\begin{smallmatrix}0&-1\\1&0\end{smallmatrix}\right]$,
+    $b=(1,0)^T$, and $x_\star=(0,-1)^T$. GMRES(1) stagnates exactly at the zero
+    approximation for this initial residual.
+\end{itemize}
+
+The restart-one baseline uses
+\begin{equation}
+    T=\begin{bmatrix}
+        2+\mathrm{i}&0.2-0.1\mathrm{i}&0\\
+        0&3-0.5\mathrm{i}&0.1+0.2\mathrm{i}\\
+        0&0&4+\mathrm{i}
+    \end{bmatrix},\qquad
+    x_\star=\begin{bmatrix}1-\mathrm{i}\\2+0.5\mathrm{i}\\-1+2\mathrm{i}\end{bmatrix}.
+\end{equation}
+The restart-two diagonal baseline uses $\operatorname{diag}(2,3,4,5)$ and
+$x_\star=(1+\mathrm{i},2-\mathrm{i},-1+0.5\mathrm{i},0.5+2\mathrm{i})^T$.
+Both baseline tests initialize every component to $0.125-0.25\mathrm{i}$.
+The inconsistent zero-operator test uses a $2\times2$ zero matrix,
+$b=(1,1)^T$, and a zero initial guess. The following options reproduce all
+tabulated systems and the residual-gap experiment; the default diagnostic
+tolerance is $10^{-12}$ except for the indicated gap test.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Options in the executable tests; $m$ is the requested restart length.}
+\label{tab:options}
+\begin{tabular}{lrrrr}
+\toprule
+System & $n$ & $m$ & $N_{\max}$ & $\tau$ \\
+\midrule
+Complex Hilbert(10) & 10 & 10 & 30 & $10^{-12}$ \\
+Near-singular diagonal & 2 & 2 & 4 & $10^{-12}$ \\
+Nonnormal Jordan-like & 6 & 6 & 12 & $10^{-12}$ \\
+Scaled $B$ (each scale) & 3 & 99 & 6 & $10^{-12}$ \\
+$B$, residual-gap test & 3 & 3 & 6 & $10^{-30}$ \\
+$T$, restart-one baseline & 3 & 1 & 100 & $10^{-12}$ \\
+Diagonal restart-two baseline & 4 & 2 & 100 & $10^{-12}$ \\
+Skew system & 2 & 1 & 5 & $10^{-12}$ \\
+Skew system, limit checks & 2 & 2 & 1 or 2 & $10^{-12}$ \\
+Inconsistent zero operator & 2 & 2 & 10 & $10^{-12}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All cases in Table~\ref{tab:options} start at zero except the two explicitly
+identified baseline tests. The one-pass Hilbert control starts from the normalized
+same right-hand side and performs eight Arnoldi steps without QR updates or
+GMRES stopping tests. It uses a dense product and a norm accumulated as
+$\operatorname{hypot}(\cdot,|z_i|)$, while production uses CSR and separate real
+and imaginary components in its norm. Thus it is a diagnostic comparison, not
+an isolated experiment changing only the MGS pass count.
+
+Other tests cover identity and permutation matrices, an empty system, a zero
+right-hand side, exact initial guesses, invalid arguments, and finite inputs
+whose matrix--vector product overflows.
+
+\subsection{Reproduction commands}
+
+From the repository root containing the stated solver/test revision, run:
+\begin{verbatim}
+git rev-parse HEAD
+git diff 26bf63a73a7201c36d6e6d6933942624ef74d9de -- \
+  CMakeLists.txt include/wavecore/helmholtz/gmres.hpp \
+  src/helmholtz/gmres.cpp src/helmholtz/gmres_diagnostics.hpp \
+  tests/helmholtz/test_gmres.cpp
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+  -DBUILD_TESTING=ON
+cmake --build build --parallel 2
+ctest --test-dir build --output-on-failure
+set -o pipefail
+./build/wavecore_gmres_test | tee /tmp/wavecore-gmres-results.txt
+\end{verbatim}
+The first two commands record provenance and reveal changes to the numerical
+sources. Record compiler, CMake, and platform versions alongside the saved
+stdout. The diagnostic output labels \texttt{error}, \texttt{wide\_residual},
+\texttt{estimated}, \texttt{orthogonality\_F}, and \texttt{max\_residual\_gap}
+map to the quantities defined above. Baseline lines use \texttt{true\_residual}
+for the independent dense double residual. Printed status codes 0, 1, and 2 mean
+\texttt{CONVERGED}, \texttt{NOT\_CONVERGED}, and \texttt{BREAKDOWN}, respectively.
+Small changes in the last digits across platforms remain possible.
+
+The manuscript requires the existing LuaLaTeX/Biber installation:
+\begin{verbatim}
+cd papers/02_gmres_numerical_observations
+latexmk -lualatex -interaction=nonstopmode \
+  -file-line-error -halt-on-error main.tex
+\end{verbatim}
+The root \texttt{make ci} currently verifies the first paper and MkDocs website;
+it does not replace the separate build of this manuscript or CTest.

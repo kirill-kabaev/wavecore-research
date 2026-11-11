@@ -1,0 +1,17 @@
+\section{Conclusions}
+
+The tested WaveCore implementation is consistent with its stated algorithm on the
+reported deterministic systems: complex inner products are Hermitian, Arnoldi
+uses two MGS passes, restart iterations obey one global limit, and convergence is
+accepted only after recomputing the true residual. The diagnostics expose three
+practical distinctions that must remain visible in later work: residual versus
+forward error, least-squares estimate versus recomputed residual, and stagnation
+versus convergence.
+
+Two results are particularly relevant for future wave simulations. First, a
+relative residual near machine precision can coexist with a percent-level
+solution error on an ill-conditioned problem. Second, an internal estimate far
+below machine precision did not cause a false success because the implementation
+checked $b-Ax$ explicitly. These are preliminary observations from selected
+tests, not proofs of robustness. FDFD Helmholtz integration, conditioning studies,
+larger sparse experiments, and preconditioner evaluation remain future work.
