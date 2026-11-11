@@ -1,4 +1,5 @@
 #include "wavecore/helmholtz/gmres.hpp"
+#include "../../src/helmholtz/gmres_diagnostics.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -217,11 +218,287 @@ void test_invalid_inputs() {
     });
 }
 
+// Independent dense arithmetic in wider precision avoids squaring tiny/huge
+// doubles and reduces cancellation in the verification oracle.
+double wide_residual(const Dense& a, const Vector& x, const Vector& b) {
+    using Wide = std::complex<long double>;
+    long double error = 0.0L;
+    long double rhs_norm = 0.0L;
+    for (std::size_t i = 0; i < b.size(); ++i) {
+        Wide product{};
+        for (std::size_t j = 0; j < x.size(); ++j) {
+            product += Wide(a[i][j]) * Wide(x[j]);
+        }
+        error = std::hypot(error, std::abs(Wide(b[i]) - product));
+        rhs_norm = std::hypot(rhs_norm, std::abs(Wide(b[i])));
+    }
+    return static_cast<double>(error / (rhs_norm == 0.0L ? 1.0L : rhs_norm));
+}
+
+double relative_error(const Vector& x, const Vector& exact) {
+    long double error = 0.0L;
+    long double reference = 0.0L;
+    for (std::size_t i = 0; i < x.size(); ++i) {
+        error = std::hypot(error, std::abs(std::complex<long double>(x[i]) -
+                                         std::complex<long double>(exact[i])));
+        reference = std::hypot(reference, std::abs(std::complex<long double>(exact[i])));
+    }
+    return static_cast<double>(error / reference);
+}
+
+struct Diagnostic {
+    double max_defect = 0.0;
+    double last_estimate = 0.0;
+    double max_residual_gap = 0.0;
+    std::size_t samples = 0;
+    std::size_t max_basis_size = 0;
+    bool optimistic_estimate = false;
+
+    detail::ArnoldiObserver observer(double tolerance) {
+        return [this, tolerance](const std::vector<Vector>& basis, const Vector& next,
+                                  double next_norm, bool breakdown,
+                                  double estimated, double actual) {
+            auto vectors = basis;
+            if (!breakdown) {
+                auto normalized = next;
+                for (auto& entry : normalized) {
+                    entry /= next_norm;
+                }
+                vectors.push_back(normalized);
+            }
+            // Frobenius norm ||V^H V - I||, independently accumulated in long double.
+            long double defect = 0.0L;
+            for (std::size_t i = 0; i < vectors.size(); ++i) {
+                for (std::size_t j = 0; j < vectors.size(); ++j) {
+                    std::complex<long double> product{};
+                    for (std::size_t k = 0; k < next.size(); ++k) {
+                        product += std::conj(std::complex<long double>(vectors[i][k])) *
+                                   std::complex<long double>(vectors[j][k]);
+                    }
+                    if (i == j) {
+                        product -= 1.0L;
+                    }
+                    defect = std::hypot(defect, std::abs(product));
+                }
+            }
+            max_defect = std::max(max_defect, static_cast<double>(defect));
+            max_basis_size = std::max(max_basis_size, vectors.size());
+            last_estimate = estimated;
+            max_residual_gap = std::max(max_residual_gap, std::abs(estimated - actual));
+            optimistic_estimate |= estimated <= tolerance && actual > tolerance;
+            ++samples;
+            check(std::isfinite(estimated) && std::isfinite(actual), "finite diagnostic residuals");
+        };
+    }
+};
+
+GmresResult diagnostic_solve(const Dense& a, const Vector& exact,
+                              const GmresOptions& options, std::string_view label,
+                              Diagnostic& diagnostic) {
+    const auto b = dense_product(a, exact);
+    const auto result = detail::gmres_observed(sparse(a), b, options, {},
+                                              diagnostic.observer(options.tolerance));
+    const auto public_result = gmres(sparse(a), b, options);
+    check(public_result.status == result.status &&
+              public_result.iterations == result.iterations &&
+              public_result.solution == result.solution &&
+              public_result.residual_history == result.residual_history,
+          "internal observation leaves public solver behavior unchanged");
+    const double actual = wide_residual(a, result.solution, b);
+    const double error = relative_error(result.solution, exact);
+    check(std::isfinite(actual) && std::isfinite(error), "finite independent error and residual");
+    check(result.iterations <= options.max_iterations, "diagnostic global iteration limit");
+    check(result.residual_history.size() == result.iterations + 1, "diagnostic history size");
+    for (const auto entry : result.solution) {
+        check(std::isfinite(entry.real()) && std::isfinite(entry.imag()), "finite diagnostic solution");
+    }
+    if (result.status == GmresStatus::CONVERGED) {
+        check(actual <= options.tolerance, "independent wide residual confirms success");
+    }
+    const double comparison_tolerance = 128.0 * std::numeric_limits<double>::epsilon() *
+        std::max(1.0, actual);
+    check(std::abs(actual - result.final_residual) <= comparison_tolerance,
+          "wide and reported residual agree within roundoff");
+    check(diagnostic.samples > 0, "actual Arnoldi basis observed");
+    check(diagnostic.max_defect < 1.0e-12, "actual two-pass MGS basis remains orthogonal");
+    std::cout << label << ": iterations=" << result.iterations
+              << ", status=" << static_cast<int>(result.status)
+              << ", error=" << error << ", wide_residual=" << actual
+              << ", estimated=" << diagnostic.last_estimate
+              << ", orthogonality_F=" << diagnostic.max_defect
+              << ", max_residual_gap=" << diagnostic.max_residual_gap << '\n';
+    return result;
+}
+
+double single_pass_arnoldi_defect(const Dense& a, const Vector& b, std::size_t steps) {
+    // Diagnostic control only: a local one-pass implementation deliberately omits
+    // the production solver's reorthogonalization, QR and stopping rules.
+    auto vector_norm = [](const Vector& values) {
+        double result = 0.0;
+        for (auto value : values) {
+            result = std::hypot(result, std::abs(value));
+        }
+        return result;
+    };
+    Vector initial = b;
+    const double beta = vector_norm(initial);
+    for (auto& value : initial) {
+        value /= beta;
+    }
+    std::vector<Vector> basis{initial};
+    for (std::size_t column = 0; column < steps; ++column) {
+        auto w = dense_product(a, basis[column]);
+        for (const auto& v : basis) {
+            Complex projection{};
+            for (std::size_t i = 0; i < w.size(); ++i) {
+                projection += std::conj(v[i]) * w[i];
+            }
+            for (std::size_t i = 0; i < w.size(); ++i) {
+                w[i] -= projection * v[i];
+            }
+        }
+        const double length = vector_norm(w);
+        check(length > 0.0 && std::isfinite(length), "single-pass diagnostic has a direction");
+        if (length == 0.0 || !std::isfinite(length)) {
+            break;
+        }
+        for (auto& value : w) {
+            value /= length;
+        }
+        basis.push_back(w);
+    }
+    long double defect = 0.0L;
+    for (std::size_t i = 0; i < basis.size(); ++i) {
+        for (std::size_t j = 0; j < basis.size(); ++j) {
+            std::complex<long double> product{};
+            for (std::size_t k = 0; k < b.size(); ++k) {
+                product += std::conj(std::complex<long double>(basis[i][k])) *
+                           std::complex<long double>(basis[j][k]);
+            }
+            product -= (i == j ? 1.0L : 0.0L);
+            defect = std::hypot(defect, std::abs(product));
+        }
+    }
+    return static_cast<double>(defect);
+}
+
+void test_extended_systems() {
+    // Unitary diagonal similarity of Hilbert(10): complex Hermitian, ill-conditioned.
+    const std::size_t n = 10;
+    Dense hilbert(n, Vector(n));
+    Vector exact(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        exact[i] = {1.0, static_cast<double>(i % 3) * 0.25};
+        for (std::size_t j = 0; j < n; ++j) {
+            const double angle = 0.3 * (static_cast<double>(i) - static_cast<double>(j));
+            hilbert[i][j] = std::polar(1.0 / static_cast<double>(i + j + 1), angle);
+        }
+    }
+    Diagnostic hilbert_diagnostic;
+    const auto hilbert_result = diagnostic_solve(hilbert, exact, {1.0e-12, n, 30},
+                                                 "complex Hilbert(10)", hilbert_diagnostic);
+    check(hilbert_result.status == GmresStatus::CONVERGED, "Hilbert residual converges");
+    check(hilbert_diagnostic.max_basis_size >= 7, "Hilbert exercises a long Arnoldi basis");
+    const double single_pass_defect = single_pass_arnoldi_defect(
+        hilbert, dense_product(hilbert, exact), 8);
+    std::cout << "Hilbert single-pass MGS control: orthogonality_F=" << single_pass_defect << '\n';
+    check(single_pass_defect > 1.0e-8,
+          "diagnostic system exposes loss of orthogonality without reorthogonalization");
+
+    // Exact condition number is 1e14. Small residual need not resolve the weak mode.
+    const Dense near_singular{{{1, 0}, {0, 0}}, {{0, 0}, {1.0e-14, 0}}};
+    Diagnostic near_diagnostic;
+    const Vector near_exact{{1, 0}, {1, 0}};
+    const auto near_result = diagnostic_solve(near_singular, near_exact, {1.0e-12, 2, 4},
+                                              "near-singular diagonal", near_diagnostic);
+    check(near_result.status == GmresStatus::CONVERGED, "weak mode below residual tolerance");
+    check(relative_error(near_result.solution, near_exact) > 0.5,
+          "small residual demonstrably does not guarantee solution accuracy");
+
+    // A fixed complex nonnormal Jordan-like matrix, with independently prescribed x.
+    Dense jordan(6, Vector(6, Complex{}));
+    Vector jordan_exact(6);
+    for (std::size_t i = 0; i < 6; ++i) {
+        jordan[i][i] = {1, 0.5};
+        if (i + 1 < 6) {
+            jordan[i][i + 1] = {2, -1};
+        }
+        jordan_exact[i] = {1.0 + static_cast<double>(i), -0.25};
+    }
+    Diagnostic jordan_diagnostic;
+    const auto jordan_result = diagnostic_solve(jordan, jordan_exact, {1.0e-12, 6, 12},
+                                                "complex nonnormal Jordan", jordan_diagnostic);
+    check(jordan_result.status == GmresStatus::CONVERGED, "nonnormal system converges");
+    check(relative_error(jordan_result.solution, jordan_exact) < 1.0e-10,
+          "nonnormal known solution recovered");
+
+    const Dense base{{{4, 1}, {1, -2}, {0.5, 0}},
+                     {{0, 1}, {5, -1}, {-1, 0.5}},
+                     {{2, 0}, {0, -1}, {6, 2}}};
+    const Vector base_exact{{1, 2}, {-2, 0.5}, {0.25, -1}};
+    for (const double scale : {1.0e-200, 1.0, 1.0e200}) {
+        auto scaled = base;
+        for (auto& row : scaled) {
+            for (auto& entry : row) {
+                entry *= scale;
+            }
+        }
+        Diagnostic diagnostic;
+        std::cout << "scale=" << scale << ' ';
+        const auto result = diagnostic_solve(scaled, base_exact, {1.0e-12, 99, 6},
+                                             "scaled complex system", diagnostic);
+        check(result.status == GmresStatus::CONVERGED, "scaled system converges");
+        check(relative_error(result.solution, base_exact) < 1.0e-10,
+              "scaled solution accuracy");
+        check(result.iterations <= 3, "restart >= n capped at n");
+    }
+
+    Diagnostic gap_diagnostic;
+    const auto gap_result = diagnostic_solve(base, base_exact, {1.0e-30, 3, 6},
+                                             "estimated/true residual gap", gap_diagnostic);
+    check(gap_diagnostic.optimistic_estimate, "estimated convergence with unmet true tolerance observed");
+    check(gap_result.status != GmresStatus::CONVERGED, "optimistic estimate cannot trigger success");
+}
+
+void test_stagnation_and_limits() {
+    // Invertible skew-Hermitian A, b=e1: GMRES(1) stagnates exactly at x=0.
+    const Dense skew{{{0, 0}, {-1, 0}}, {{1, 0}, {0, 0}}};
+    const Vector exact{{0, 0}, {-1, 0}};
+    Diagnostic diagnostic;
+    const auto result = diagnostic_solve(skew, exact, {1.0e-12, 1, 5},
+                                         "exact GMRES(1) stagnation", diagnostic);
+    check(result.status == GmresStatus::NOT_CONVERGED && result.iterations == 5,
+          "stagnation reaches limit without false success");
+    for (const auto residual : result.residual_history) {
+        check(residual == 1.0, "stagnation history remains exactly one");
+    }
+    for (const auto limit : {std::size_t{1}, std::size_t{2}}) {
+        Diagnostic boundary;
+        const auto boundary_result = diagnostic_solve(skew, exact, {1.0e-12, 2, limit},
+                                                       "iteration boundary", boundary);
+        check(boundary_result.iterations == limit, "exact boundary iteration count");
+        check(boundary_result.status == (limit == 1 ? GmresStatus::NOT_CONVERGED :
+                                                     GmresStatus::CONVERGED),
+              "success exactly at limit, failure before it");
+    }
+    bool overflow = false;
+    try {
+        // Finite A and x0, but their product cannot be represented as double.
+        const double largest = std::numeric_limits<double>::max();
+        (void)gmres(sparse({{{largest, 0}}}), {{1, 0}}, {}, {{2, 0}});
+    } catch (const std::overflow_error&) {
+        overflow = true;
+    }
+    check(overflow, "nonfinite arithmetic raises an error instead of returning success");
+}
+
 }  // namespace
 
 int main() {
     test_systems();
     test_special_cases();
     test_invalid_inputs();
+    test_extended_systems();
+    test_stagnation_and_limits();
     return failures == 0 ? 0 : 1;
 }

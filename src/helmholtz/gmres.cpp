@@ -1,4 +1,5 @@
 #include "wavecore/helmholtz/gmres.hpp"
+#include "gmres_diagnostics.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -89,10 +90,11 @@ void rotate(const Rotation& rotation, Complex& first, Complex& second) {
 
 }  // namespace
 
-GmresResult gmres(const CsrMatrix& matrix,
+GmresResult detail::gmres_observed(const CsrMatrix& matrix,
                   const Vector& rhs,
                   const GmresOptions& options,
-                  const Vector& initial_guess) {
+                  const Vector& initial_guess,
+                  const ArnoldiObserver& observer) {
     const auto n = matrix.rows();
     if (matrix.cols() != n || rhs.size() != n ||
         (!initial_guess.empty() && initial_guess.size() != n)) {
@@ -203,6 +205,10 @@ GmresResult gmres(const CsrMatrix& matrix,
             require_finite(result.solution);
             r = residual(matrix, rhs, result.solution);
             record_residual();
+            if (observer) {
+                observer(basis, w, next_norm, breakdown,
+                         std::abs(g[column + 1]) / denominator, result.final_residual);
+            }
             if (result.final_residual <= options.tolerance) {
                 result.status = GmresStatus::CONVERGED;
                 return result;
@@ -220,6 +226,13 @@ GmresResult gmres(const CsrMatrix& matrix,
         }
     }
     return result;
+}
+
+GmresResult gmres(const CsrMatrix& matrix,
+                  const Vector& rhs,
+                  const GmresOptions& options,
+                  const Vector& initial_guess) {
+    return detail::gmres_observed(matrix, rhs, options, initial_guess, {});
 }
 
 }  // namespace wavecore::helmholtz
