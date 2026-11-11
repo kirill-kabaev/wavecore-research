@@ -38,6 +38,7 @@ nav:
   - Публикации: publications.md
   - C++ API: cpp-api.md
   - Test Coverage: test-coverage.md
+  - Numerical Verification: numerical-verification.md
   - Research Log: research-log.md
   - Numerical Experiment Template: templates/numerical-experiment.md
   - Developer Commands: developer-commands.md

@@ -3,6 +3,26 @@
 This file records verified project checkpoints. Research milestones are not
 automatically published releases or peer-reviewed results.
 
+## Unreleased — Stage 5C: verification hardening
+
+- Stage 5C.1, committed as b99f45ae8e056efe2582ddf6186db48b3bf4aafe:
+  shared test-only convergence acceptance checks and persistent regression
+  fixtures, including typed failure reasons, exact diagnostic conditions,
+  floating-point boundaries, and a real iteration-limited GMRES solve.
+  This tests acceptance semantics without changing Stage 5B numerical criteria.
+- Stage 5C.2, committed as 58fcf252f97e69b60b6bf1efe2fd0ece9286c8a6:
+  a separate rectangular convergence CTest and CSV, with independent references,
+  weighted norms, spectral-gap checks, true residuals and named finite metrics.
+  The suite at this checkpoint contains thirteen CTest registrations.
+- Stage 5C.3 documentation: the
+  [Numerical Verification Protocol](docs/numerical-verification.md) consolidates
+  the Stage 5A/5B/5C.1/5C.2 model, thresholds, references, commands and limitations.
+  Historical CSVs, numerical algorithms, and acceptance criteria are preserved.
+
+These are research checkpoints, not published releases. The rectangular study
+covers one mode and fixed spacing ratio on one platform; it adds no general
+stability, near-resonance, performance or cross-platform guarantee.
+
 ## Unreleased — Stage 5B: spatial convergence
 
 ### Added
@@ -31,7 +51,7 @@ automatically published releases or peer-reviewed results.
   <=1e-11, and numerical/algebraic errors <=0.1% of spatial errors.
 - The mixture takes 2,2,2,3 GMRES iterations in the recorded environment,
   avoiding an exclusively one-step eigenvector verification.
-- The suite contains eleven CTest registrations. Numerical-core and manuscript
+- At the Stage 5B checkpoint the suite contained eleven CTest registrations. Numerical-core and manuscript
   sources are unchanged by Stage 5B.
 
 ### Limitations

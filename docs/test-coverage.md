@@ -6,6 +6,11 @@ test sources, not an inferred percentage of code coverage. A passing test is
 evidence for the exercised cases only; it is not a general stability or
 correctness proof for all numerical inputs.
 
+The [Numerical Verification Protocol](numerical-verification.md) defines the
+model, reference solutions, norm conventions, existing acceptance thresholds,
+and claim-to-test traceability. Stage 5C.1 verifies acceptance semantics;
+Stage 5C.2 adds rectangular spatial convergence, not new solver guarantees.
+
 ## Registered test matrix
 
 | Test / CTest name | Component | Verified properties | Test methodology | Limitations |

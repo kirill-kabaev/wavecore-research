@@ -43,7 +43,15 @@ dates are inferred here.
    same grids checks both norm orders against modal predictions and exercises
    more than one GMRES iteration. The original single-mode experiment is preserved.
 
-The numerical records below cover the GMRES campaign and Stages 5A–5B;
+9. **Stage 5C.1 acceptance regression.** Shared predicates and persistent
+   fixtures verify acceptance semantics without adding PDE measurements.
+10. **Stage 5C.2 rectangular convergence.** A separate four-grid mode-(1,1)
+    experiment checks unequal spacings and lengths with independent references.
+11. **Stage 5C.3 verification documentation.** The
+    [Numerical Verification Protocol](numerical-verification.md) consolidates
+    existing evidence, not new numerical results.
+
+The numerical records below cover the GMRES campaign and Stages 5A–5C.2;
 each record identifies its own implementation revision and scope.
 
 ## Experiment Records
@@ -141,7 +149,7 @@ ctest --test-dir build --output-on-failure
 The manuscript also records GCC, CMake, platform, flags, and the diagnostic
 output labels needed to interpret the run.
 
-**Related publication:** <a href="../papers/02_gmres_numerical_observations/main.tex">`papers/02_gmres_numerical_observations/main.tex`</a>
+**Related publication:** <a href="https://github.com/kirill-kabaev/wavecore-research/blob/58fcf252f97e69b60b6bf1efe2fd0ece9286c8a6/papers/02_gmres_numerical_observations/main.tex">`papers/02_gmres_numerical_observations/main.tex`</a>
 
 ### Stage 5A: FDFD + GMRES integration
 
@@ -584,6 +592,24 @@ The root changelog records Stage 5A and the unreleased Stage 5B milestone.
 by the implemented experiments. README and navigation now reflect the completed
 test workflows. No production numerical kernel or manuscript is changed.
 
+### Stage 5C.1: Persistent acceptance regression
+
+**Implementation revision:** b99f45ae8e056efe2582ddf6186db48b3bf4aafe.
+Both square convergence drivers use the shared test-only policy in
+tests/helmholtz/verification_checks.hpp. The CTest
+wavecore.verification.acceptance exercises valid metrics, rejected statuses,
+residual/error/order violations, nonfinite values, inclusive limits and
+nextafter-outside values. A real two-mode solve with max_iterations=1 must
+return NOT_CONVERGED with an independently excessive true residual.
+
+Typed failure reasons are primary; full diagnostic condition matching also
+rejects prefix-only matches and missing measurement delimiters. Unexpected
+exceptions cannot count as successful negative fixtures. These are acceptance
+semantics checks, not new spatial-convergence measurements. Driver formulas,
+thresholds, historical CSVs and numerical kernels remain unchanged. The
+[protocol](numerical-verification.md) records predicate preconditions and
+limitations; it does not claim exhaustive combinations of invalid inputs.
+
 ### Stage 5C.2: Rectangular grid convergence
 
 **Pre-run protocol:** Written on 2026-11-11 before the first rectangular
@@ -726,6 +752,18 @@ eigenvector; one-step GMRES is expected and does not demonstrate solver
 scalability or exercise restart. Other aspect ratios, unequal-rate refinement,
 indefinite/near-resonant problems, heterogeneous media, and platform portability
 are not established. No article or publication claim is added.
+
+### Stage 5C.3: Numerical verification documentation
+
+**Source baseline:** 58fcf252f97e69b60b6bf1efe2fd0ece9286c8a6.
+The [Numerical Verification Protocol](numerical-verification.md) consolidates
+the model, discrete references, norm definitions, existing acceptance thresholds,
+spectral assumptions, commands, and claim-to-test traceability for Stage 5A,
+5B, 5C.1 and 5C.2. It distinguishes exact-arithmetic deductions, recorded
+observations, automated assertions and unverified extensions. This is a
+documentation-only step: no new numerical dataset, changed threshold, solver
+algorithm, or cross-platform/scalability claim is introduced. Historical
+experiment records and CSV values remain the primary measurement evidence.
 
 ## Known Limitations
 

@@ -23,7 +23,7 @@ maintained as a modular LuaLaTeX source with BibLaTeX references.
 **Research themes:** Maxwell equations; Helmholtz equations; computational
 electromagnetics; boundary conditions; numerical methods; sparse solvers.
 
-- LaTeX source: <a href="../papers/01_maxwell_helmholtz/main.tex">`papers/01_maxwell_helmholtz/main.tex`</a>
+- LaTeX source: <a href="https://github.com/kirill-kabaev/wavecore-research/blob/58fcf252f97e69b60b6bf1efe2fd0ece9286c8a6/papers/01_maxwell_helmholtz/main.tex">`papers/01_maxwell_helmholtz/main.tex`</a>
 - [Locally built PDF](papers/maxwell-helmholtz.pdf)
 
 ## Numerical Robustness of Restarted GMRES for Complex-Valued Linear Systems: Preliminary Computational Experiments
@@ -48,6 +48,6 @@ of universal stability or scientific novelty.
 orthogonalization; numerical robustness; residual diagnostics; sparse linear
 systems.
 
-- LaTeX source: <a href="../papers/02_gmres_numerical_observations/main.tex">`papers/02_gmres_numerical_observations/main.tex`</a>
+- LaTeX source: <a href="https://github.com/kirill-kabaev/wavecore-research/blob/58fcf252f97e69b60b6bf1efe2fd0ece9286c8a6/papers/02_gmres_numerical_observations/main.tex">`papers/02_gmres_numerical_observations/main.tex`</a>
 - PDF: not currently published on the website; build it locally from the
   LaTeX source with `latexmk -lualatex`.

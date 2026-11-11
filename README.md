@@ -23,6 +23,10 @@ two-mode mixture on four nested square grids with continuous manufactured forcin
 Stage 5C.2 adds a separate four-grid convergence experiment on a 1 m by 1.5 m
 rectangle with unequal coordinate spacings and independent modal references.
 
+The [Numerical Verification Protocol](docs/numerical-verification.md) consolidates
+the mathematical references, acceptance criteria, reproducibility commands,
+and limits of the Stage 5A–5C.2 evidence.
+
 ## Current Implementation
 
 The C++20 library currently provides:

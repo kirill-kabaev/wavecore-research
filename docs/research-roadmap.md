@@ -16,6 +16,11 @@ two-mode spatial convergence studies are complete. A user-facing integrated appl
 planned. See the [C++ API](cpp-api.md), [test
 coverage](test-coverage.md), and [research log](research-log.md).
 
+Stage 5C.1 acceptance regression and Stage 5C.2 rectangular convergence are also
+complete at baseline 58fcf252f97e69b60b6bf1efe2fd0ece9286c8a6.
+Stage 5C.3 consolidates their documentation in the
+[Numerical Verification Protocol](numerical-verification.md).
+
 ## Completed Milestones
 
 These are **Completed** according to the source, tests, and documentation:
@@ -40,7 +45,7 @@ validated or production-scale.
 
 ## Research Stages
 
-Stages 5A and 5B are **Completed** within the scope documented below. Stages
+Stages 5A, 5B, 5C.1 and 5C.2 are **Completed** within the scope documented below. Stages
 6–9 are **Planned** until their individual Definition of Done is met.
 
 ### Stage 5A — FDFD + GMRES Integration (P0)
@@ -72,6 +77,21 @@ Stages 5A and 5B are **Completed** within the scope documented below. Stages
   The two-mode experiment requires multiple GMRES iterations and preserves
   separate analytic order predictions for each norm. Broader modal mixtures,
   anisotropic and near-resonant convergence remain future work.
+
+### Stage 5C — Verification and Documentation Hardening
+
+- **5C.1 — Completed:** Shared test-only acceptance predicates and persistent
+  positive, negative, floating-point boundary, and diagnostic-contract fixtures.
+  This verifies acceptance semantics rather than new PDE accuracy results.
+- **5C.2 — Completed:** Four jointly refined grids on a 1 m by 1.5 m rectangle,
+  mode (1,1), k=1, unequal spacings, independent discrete references and residuals,
+  and second-order weighted L2/Linf convergence. One aspect ratio and fixed
+  hx/hy=1/2 do not establish general anisotropic refinement or solver scalability.
+- **5C.3 — Documentation:** A unified protocol links existing mathematical
+  references, thresholds, tests, raw data and limitations without changing
+  numerical criteria or historical results.
+- **Evidence:** See the [protocol](numerical-verification.md),
+  [coverage matrix](test-coverage.md), and [research log](research-log.md).
 
 ### Stage 6 — Resonance and Conditioning (P2)
 
@@ -115,7 +135,7 @@ Stages 5A and 5B are **Completed** within the scope documented below. Stages
 
 ## Dependencies
 
-The principal order is `5A -> 5B -> 6 -> 7 -> 8 -> 9`. Stage 6 may begin with
+The principal order is `5A -> 5B -> 5C -> 6 -> 7 -> 8 -> 9`. Stage 6 may begin with
 a small Stage 5A baseline, but conditioning claims require an independently
 verified solve. Stage 7 requires fixed unpreconditioned references; Stage 8
 requires numerical correctness and a stable protocol; Stage 9 requires the

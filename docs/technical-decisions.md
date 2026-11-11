@@ -4,6 +4,10 @@ This page explains choices evidenced by the current Stage 5A/5B and Stage 5C sou
 [experiment records](research-log.md). It documents the current rationale;
 it does not reconstruct undocumented historical discussions or approval dates.
 
+The [Numerical Verification Protocol](numerical-verification.md) is the central
+description of the model, error decomposition, existing acceptance thresholds,
+and reproduction procedure. This page retains the rationale for those choices.
+
 ## Continuous manufactured forcing for spatial verification
 
 The model is the homogeneous, isotropic, lossless TM_z Helmholtz problem
