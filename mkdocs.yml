@@ -42,4 +42,5 @@ nav:
   - Numerical Experiment Template: templates/numerical-experiment.md
   - Developer Commands: developer-commands.md
   - Research Roadmap: research-roadmap.md
+  - Technical Decisions: technical-decisions.md
   - О проекте: about.md

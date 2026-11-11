@@ -11,8 +11,9 @@ Helmholtz FDFD workflow and a carefully characterized complex Krylov solver.
 The repository provides Grid2D, validated complex CSR storage, five-point
 Helmholtz assembly, manufactured data helpers, restarted unpreconditioned
 complex GMRES, deterministic diagnostics, local CMake/CTest, and scientific
-documentation. An integrated FDFD-plus-GMRES application and spatial
-convergence study are not yet complete. See the [C++ API](cpp-api.md), [test
+documentation. Stage 5A integration tests and the Stage 5B single-mode and
+two-mode spatial convergence studies are complete. A user-facing integrated application remains
+planned. See the [C++ API](cpp-api.md), [test
 coverage](test-coverage.md), and [research log](research-log.md).
 
 ## Completed Milestones
@@ -28,18 +29,23 @@ These are **Completed** according to the source, tests, and documentation:
 - numerical robustness diagnostics for conditioning, nonnormality, restart,
   breakdown, scaling, residual gaps, and Arnoldi orthogonality;
 - preliminary GMRES research paper;
+- Stage 5A public-API FDFD + GMRES integration with independent residual/error checks;
+- Stage 5B continuous-RHS convergence on four nested square grids, confirming
+  second-order L2/Linf accuracy for a smooth nonresonant mode and a separate
+  two-mode mixture;
 - local CI entry points and scientific documentation.
 
 Completed means implemented and covered by repository evidence, not universally
 validated or production-scale.
 
-## Planned Research Stages
+## Research Stages
 
-The following stages are **Planned**. They must not be described as implemented
-until their individual Definition of Done is met.
+Stages 5A and 5B are **Completed** within the scope documented below. Stages
+6–9 are **Planned** until their individual Definition of Done is met.
 
 ### Stage 5A — FDFD + GMRES Integration (P0)
 
+- **Status:** Completed through four deterministic integration tests; no user-facing solve CLI.
 - **Objective:** Compose grid, assembly, manufactured RHS, and GMRES into one reproducible solve.
 - **Prerequisites:** Existing APIs and a documented nonresonant case.
 - **Main tasks:** Assemble the system; form RHS; solve with GMRES; recompute true residual; compare with the manufactured solution; add integration tests.
@@ -50,6 +56,10 @@ until their individual Definition of Done is met.
 
 ### Stage 5B — Grid Convergence Study (P1)
 
+- **Status:** Completed for mode (1,1), k=1 on nx=ny=7,15,31,63; see the
+  [experiment record](research-log.md#stage-5b-grid-convergence-study).
+  Hardening adds the mixture (1,1)-0.3(2,3) on the same grids and k;
+  see the [multimode record](research-log.md#stage-5b-hardening-multimode-convergence).
 - **Objective:** Measure spatial FDFD error and observed order.
 - **Prerequisites:** Stage 5A, fixed manufactured mode, and nonresonant parameters.
 - **Main tasks:** Refine grids; use continuous manufactured RHS; compute L2/Linf errors; estimate order; analyze deviations from expected second order.
@@ -57,6 +67,11 @@ until their individual Definition of Done is met.
 - **Definition of Done:** A reproducible table separates discretization and iteration error and reports observed order.
 - **Deliverables:** Raw refinement data, tables, plots if produced, and interpretation.
 - **Risks:** Insufficient solver accuracy, anisotropic refinement, resonance, and indexing errors.
+- **Verified scope:** Continuous forcing, independent true residuals, weighted
+  L2/Linf norms, exact discrete references, and orders approaching two.
+  The two-mode experiment requires multiple GMRES iterations and preserves
+  separate analytic order predictions for each norm. Broader modal mixtures,
+  anisotropic and near-resonant convergence remain future work.
 
 ### Stage 6 — Resonance and Conditioning (P2)
 

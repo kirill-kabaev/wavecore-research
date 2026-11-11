@@ -4,13 +4,13 @@
 
 This log records reproducible WaveCore Research milestones, observations, and
 open questions. It separates measured observations from interpretations and
-hypotheses. A numerical value is included only when it is reported in the
-GMRES manuscript and tied to the executable test revision. The log does not
+hypotheses. A numerical value is included only when it is tied to an
+executable test revision and recorded output or the GMRES manuscript. The log does not
 claim general stability from a finite set of deterministic tests.
 
 For a reusable record structure, see the [Numerical Experiment Template](templates/numerical-experiment.md).
 
-The experiment revision is the solver/test revision
+The original GMRES diagnostic campaign uses the solver/test revision
 `26bf63a73a7201c36d6e6d6933942624ef74d9de`. It must not be replaced by a later
 documentation or manuscript commit when reproducing the measurements.
 
@@ -34,9 +34,17 @@ dates are inferred here.
 5. **Preliminary GMRES research paper.** The measured observations were
    documented in the manuscript *Numerical Robustness of Restarted GMRES for
    Complex-Valued Linear Systems: Preliminary Computational Experiments*.
+6. **Stage 5A integration.** Four deterministic algebraic FDFD + GMRES cases
+   independently verify residuals and solution errors.
+7. **Stage 5B grid convergence.** Continuous forcing on four nested grids
+   confirms second-order L2/Linf accuracy for one smooth nonresonant mode,
+   with separate algebraic and discretization errors.
+8. **Stage 5B multimode hardening.** An independent two-mode experiment on the
+   same grids checks both norm orders against modal predictions and exercises
+   more than one GMRES iteration. The original single-mode experiment is preserved.
 
-The numerical records below refer specifically to stage 4 and the manuscript
-prepared from it.
+The numerical records below cover the GMRES campaign and Stages 5A–5B;
+each record identifies its own implementation revision and scope.
 
 ## Experiment Records
 
@@ -239,11 +247,350 @@ single case with `./build/wavecore_integration_test restarted`.
 
 **Related publication:** No new manuscript or published result for Stage 5A.
 
+### Stage 5B: Grid convergence study
+
+**Date:** 2026-11-11 (local run date).
+
+**Research question:** Does the five-point FDFD scheme exhibit second-order
+spatial accuracy when the continuous RHS is used and algebraic error is controlled?
+
+**Hypothesis:** For a fixed smooth nonresonant Dirichlet mode, both weighted
+L2 and Linf errors decay as h squared. This hypothesis concerns spatial accuracy,
+not general GMRES robustness or efficiency.
+
+**Implementation revision:** Base
+`69c27752fc022a04d200fa4f176dc9011db65b59` plus the uncommitted Stage 5B
+`CMakeLists.txt` registration and `tests/helmholtz/test_convergence.cpp`.
+The numerical-core implementation is unchanged from that base.
+
+**Environment:** Ubuntu 24.04 under WSL2, Linux
+`6.18.58.1-microsoft-standard-WSL2`, x86_64; GCC 13.3.0; CMake 3.28.3;
+C++20 Debug, `-g -std=c++20 -Wall -Wextra -Wpedantic`. Assembly/GMRES use
+`std::complex<double>`; independent reference formulas and norm accumulation use
+`std::complex<long double>` / `long double`. Sequential, no preconditioner or
+external numerical libraries. No performance benchmark is claimed.
+
+**Mathematical model and parameters:** Homogeneous isotropic lossless TM_z,
+time convention exp(-i omega t), field u=E_z, unit square in metres, zero
+Dirichlet/PEC boundaries. This study intentionally uses a different mode and
+wavenumber from the initial (1,2), k=8 specification example:
+
+$$
+-\Delta u-k^2u=f,\qquad k=1\ \mathrm{m}^{-1},\qquad
+u^*(x,y)=\sin(\pi x/L_x)\sin(\pi y/L_y),\quad L_x=L_y=1\ \mathrm m.
+$$
+
+Amplitude is 1 V/m; f has units V/m cubed. The existing
+`continuous_manufactured_rhs(grid,1,1,k)` supplies
+f=(2 pi squared - k squared) u*, with the eigenvalue in inverse square metres.
+It is independently checked against the PDE formula in long double; **b is
+not formed as A_h*u_exact**. Grid dimensions count interior nodes:
+nx=ny=7,15,31,63, h=1/(n+1)=1/8,1/16,1/32,1/64 m. Coordinates are
+x=(i+1)hx, y=(j+1)hy, p=j*nx+i. Boundaries are omitted from the unknown vector.
+
+**Nonresonance and conditioning:** The continuous minimum eigenvalue is
+2 pi squared, so the continuous gap is 2 pi squared - 1 > 0. On these square grids,
+
+$$
+\lambda_{11,h}=\frac{8}{h^2}\sin^2\!\left(\frac{\pi h}{2}\right),\qquad
+\delta_h=\lambda_{11,h}-1,\qquad
+\kappa_2(A_h)=\frac{8h^{-2}\cos^2(\pi h/2)-1}{\delta_h}.
+$$
+
+Here and below lengths are numerical values in metres. The minimum/maximum
+discrete eigenvalues occur at (1,1)/(n,n). Since sin(z)>=2z/pi on [0,pi/2],
+lambda_11,h>=8 and delta_h>=7 inverse square metres. Thus **all** eigenvalues
+are positive and separated from zero, not just the forced mode. The test checks
+this bound using independent formulas rather than the production eigenvalue helper.
+Measured gaps range from 18.4868396771 to 18.7352455345; condition numbers grow
+from 26.5872 to 1747.8962. This is a subresonant positive-definite example.
+
+**Method and error definitions:** Run the public CSR assembly and GMRES;
+recompute b-A_h*u_computed with a fresh public CSR matvec, accumulating norms
+independently. The relative true residual is ||b-A_h*u_computed||_2/||b||_2;
+the weighted-norm ratio is identical on each uniform grid. For total nodal
+error e=u_computed-u*|h,
+
+$$
+E_{2,h}=\left(h_xh_y\sum_p|e_p|^2\right)^{1/2},\qquad
+E_\infty=\max_p|e_p|,\qquad
+p_\ell=\log_2(E_{\ell-1}/E_\ell).
+$$
+
+These are **absolute** errors: E_2,h has units V, E_inf has units V/m.
+Orders are computed separately for each norm. In exact arithmetic the discrete
+solution and its spatial-error factor are
+
+$$
+u_h=\frac{2\pi^2-1}{\lambda_{11,h}-1}u^*|_h=(1+d_h)u^*|_h,\qquad
+d_h=\frac{2\pi^2-\lambda_{11,h}}{\lambda_{11,h}-1}>0.
+$$
+
+Independent long-double samples of u* and u_h separate the measured algebraic
+error u_computed-u_h from spatial error u_h-u*. On these odd-n grids the centre
+is sampled, ||u*||_inf=1 and ||u*||_2,h=1/2; hence the exact spatial errors are
+d_h and d_h/2. The test checks these identities. Stored-matrix and RHS
+rounding are included in the numerical/algebraic error budget; the reference
+u_h is the exact-arithmetic stencil solution rather than an exact solution of
+every rounded input. For these binary h and k the stencil coefficients themselves
+are exactly representable.
+
+**Solver parameters and acceptance criteria:** Zero initial guess;
+unpreconditioned restarted GMRES, restart=20, max_iterations=200,
+tolerance=1e-11. Success requires CONVERGED, finite values, the iteration limit,
+and independently computed true residual <=1e-11. This residual threshold is
+accepted only with the following forward-error checks:
+
+- Actual algebraic errors in **both** norms must be <=0.001 times the respective
+  exact spatial errors. This limits contamination of the measured orders.
+- A conditioning-aware L2 budget must also be <=0.001 times spatial L2 error:
+  B_2=||r||_2,h/delta_h + 64 epsilon_double kappa_2 ||u_h||_2,h.
+  Actual algebraic L2 error must be <=B_2. The first term follows from
+  ||A_h inverse||_2=1/delta_h; the second is a conservative allowance for
+  constructing the references/forcing and rounding sparse products, not a
+  universal floating-point error theorem.
+- True relative residual must be at least 100 times below the relative spatial
+  error, and both measured total errors must strictly decrease on every refinement.
+
+**Order rationale:** Taylor expansion gives
+
+$$
+\lambda_{11,h}=2\pi^2-\frac{\pi^4}{6}h^2+\frac{\pi^6}{180}h^4+O(h^6),
+\qquad
+d_h=\frac{\pi^4}{6(2\pi^2-1)}h^2[1+O(h^2)].
+$$
+
+The exact modal orders $\log_2(d_h/d_{h/2})$, evaluated from the trigonometric
+formula, are 2.0091162938184, 2.0022732186790, 2.0005679399975. The test checks
+that these lie in [2,2.02]. At <=0.1% algebraic contamination per level, the
+order perturbation is bounded by log2(1.001/0.999), approximately 0.002886.
+Observed orders must satisfy that tighter distance to their analytic prediction
+as well as [1.99,2.03]. These bounds follow from this mode and grid sequence,
+not from an arbitrary generic second-order threshold. They were set before
+the first run; no tolerance was loosened to obtain a pass.
+
+**Measured results:** All four solves returned CONVERGED. Errors below are
+total numerical-minus-continuous errors, not algebraic-only errors.
+
+| Interior grid | h (m) | Iterations | True relative residual | L2(h) error (V) | Linf error (V/m) | Order L2 / Linf |
+|---|---|---|---|---|---|---|
+| 7 x 7 | 0.125 | 1 | 1.7385039704e-15 | 6.8256427133e-3 | 1.3651285427e-2 | N/A |
+| 15 x 15 | 0.0625 | 1 | 7.3024031066e-15 | 1.6956619789e-3 | 3.3913239578e-3 | 2.0091162938 / 2.0091162938 |
+| 31 x 31 | 0.03125 | 1 | 3.2314534745e-14 | 4.2324806759e-4 | 8.4649613518e-4 | 2.0022732187 / 2.0022732187 |
+| 63 x 63 | 0.015625 | 1 | 1.3350198527e-13 | 1.0577037050e-4 | 2.1154074100e-4 | 2.0005679400 / 2.0005679400 |
+
+| Interior grid | Algebraic L2(h) | Algebraic Linf | L2 error budget B_2 |
+|---|---|---|---|
+| 7 x 7 | 9.5100590592e-17 | 2.1703016988e-16 | 1.9237339170e-13 |
+| 15 x 15 | 3.0962587702e-16 | 6.8651681562e-16 | 7.7759562209e-13 |
+| 31 x 31 | 2.1030318917e-16 | 5.5662939535e-16 | 3.1197571542e-12 |
+| 63 x 63 | 4.7643231173e-16 | 1.1758714662e-15 | 1.2488941937e-11 |
+
+Full-precision rows, including both orders, analytic predictions, separate
+errors, spectral gaps, and condition numbers, are preserved in the repository:
+`experiments/helmholtz_2d/results/stage5b_grid_convergence.csv`.
+The CSV is raw executable output after its first metadata line; table entries
+above are rounded for display, not additional measurements.
+
+**Interpretation:** The measured orders approach two and agree with exact modal
+predictions in both norms. Spatial errors dominate both measured algebraic
+errors and their conservative L2 budgets, confirming the expected spatial order
+for this experiment. One GMRES step is expected: continuous forcing is a scalar
+multiple of a discrete eigenvector. It is not evidence for constant iteration
+counts on general Helmholtz systems.
+
+**Limitations:** One mode, square isotropic grids, k=1, homogeneous medium, PEC
+walls, double precision, and one GCC/WSL2 environment. No indefinite/near-resonant
+or multimode spatial study, preconditioning, performance/scalability conclusion,
+or mesh-independent GMRES claim. Very fine grids may raise cancellation and
+conditioning effects. Stage 5A retains a separate mixed-mode restart test.
+
+**Reproduction commands:** From the repository root with the Stage 5B patch:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel 2
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R '^wavecore.convergence$' -V
+./build/wavecore_convergence_test
+```
+
+The direct executable prints a versioned metadata line and the full CSV table;
+nonzero exit status signals any acceptance failure. To keep a local raw capture:
+
+```bash
+set -o pipefail
+./build/wavecore_convergence_test | tee build/stage5b-grid-convergence.txt
+```
+
+**Related publication:** No article has been modified; this is a reproducible
+research-log experiment, not a peer-reviewed result.
+
+### Stage 5B hardening: Multimode convergence
+
+**Date:** 2026-11-11 (local run date).
+
+**Research question and hypothesis:** Does second-order spatial convergence
+persist for a smooth mixture of two distinct eigenmodes, when GMRES must perform
+multiple iterations? The hypothesis is O(h squared) error in both norms after
+separating numerical/algebraic error from exact-arithmetic spatial error.
+
+**Implementation revision:** Base HEAD
+`69c27752fc022a04d200fa4f176dc9011db65b59`, the existing uncommitted Stage 5B
+patch, and this hardening patch (`test_multimode_convergence.cpp` and its CMake
+registration). Production FDFD/GMRES is unchanged. The single-mode test and CSV
+remain byte-for-byte unchanged from the preceding Stage 5B experiment.
+
+**Environment:** Same GCC 13.3.0 / CMake 3.28.3, Ubuntu/WSL2 x86_64 C++20
+Debug environment as the single-mode record. Production arithmetic is complex
+double; independent reference formulas and norm accumulation use long double.
+Build flags remain `-g -std=c++20 -Wall -Wextra -Wpedantic`. Sequential,
+unpreconditioned, no external numerical library; no timing claim.
+
+**Model and parameters:** Unit square in metres, TM_z field E_z with
+exp(-i omega t), homogeneous isotropic lossless medium, zero Dirichlet/PEC,
+A_h=-Delta_h-k squared I, k=1 inverse metre. Define
+phi_mn=sin(m pi x/Lx) sin(n pi y/Ly), Lx=Ly=1 m. Amplitudes are 1 and -0.3 V/m:
+
+$$
+u^*=\phi_{11}-0.3\phi_{23},\qquad
+f=(2\pi^2-1)\phi_{11}-0.3(13\pi^2-1)\phi_{23}.
+$$
+
+Eigenvalue coefficients above are numerical values in inverse square metres;
+f has units V/m cubed. Existing `manufactured_solution` and
+`continuous_manufactured_rhs` generate each mode, then their vectors are summed.
+No forcing is constructed as A_h*u_exact. Independent coordinate-based
+long-double evaluation checks both public helper results against the PDE.
+Interior counts nx=ny=7,15,31,63, h=1/8,1/16,1/32,1/64 m; x=(i+1)h,
+y=(j+1)h, p=j*nx+i. No random inputs.
+
+**Independent discrete reference:** With numerical lengths in metres,
+
+$$
+\lambda_{mn}=(m^2+n^2)\pi^2,\qquad
+\lambda_{mn,h}=\frac4{h^2}\left[\sin^2\frac{m\pi h}{2}
+                                  +\sin^2\frac{n\pi h}{2}\right],\qquad
+d_{mn,h}=\frac{\lambda_{mn}-\lambda_{mn,h}}{\lambda_{mn,h}-1},
+$$
+
+$$
+u_h=(1+d_{11,h})\phi_{11}-0.3(1+d_{23,h})\phi_{23}.
+$$
+
+References use independent trigonometric formulas, not the production discrete
+eigenvalue helper. The full operator is positive definite: the same sin(z)>=2z/pi
+argument as in the single-mode record gives delta_h=lambda_11,h-1>=7 inverse
+square metres. The two forced eigenvalues are distinct. kappa_2 is computed from
+the extreme (1,1)/(n,n) modes and ranges from 26.5872 to 1747.8962.
+
+**Norms and stopping criteria:** Total error is u_computed-u*, algebraic error
+is u_computed-u_h, and spatial error is u_h-u*. Use absolute
+L2(h)=sqrt(h squared sum |e| squared) and Linf=max |e|, with units V and V/m.
+Discrete sine orthogonality independently gives spatial
+L2(h)=sqrt(d_11,h squared + 0.09 d_23,h squared)/2; the test checks this identity.
+Spatial Linf is evaluated as the maximum of the independent modal error at
+the grid nodes, not a sum of individual maxima.
+
+Zero initial guess, tolerance=1e-11, restart=20, max_iterations=200, matching
+the single-mode settings. Require CONVERGED, finite diagnostics, and the global
+iteration limit. Recompute true relative residual ||b-A_h*u_computed||_2/||b||_2
+using a fresh public CSR product and wide norms. Require it <=1e-11 and at least
+100 times below the relative spatial L2 error. At least one grid must require
+more than one GMRES iteration.
+
+The residual threshold is only accepted together with **both** actual algebraic
+norm errors <=0.1% of their spatial counterparts. Also check algebraic
+L2(h)<=B_2<=0.001 times spatial L2(h), where
+B_2=||r||_2,h/delta_h + 64 epsilon_double kappa_2 ||u_h||_2,h.
+The inverse-gap part follows from the spectrum; the rounding part is the same
+conservative budget as the single-mode test, not a universal stability theorem.
+
+**Order criteria and rationale:** For each mode,
+lambda_mn-lambda_mn,h=pi to the fourth (m to the fourth + n to the fourth)
+h squared/12 + O(h to the fourth), so the mixture has a nonzero second-order
+leading error. Before solver measurements, independent modal calculations gave
+orders approximately (2.051388,2.047707), (2.012614,1.999341),
+(2.003139,2.002857) in (L2,Linf). The higher-frequency mode gives larger
+coarse-grid corrections, and nodal maxima can shift, so Linf order need not
+approach two monotonically or from above.
+
+For each refinement require decreasing total errors and observed orders in
+[1.99,2.06]. More tightly, each observed order must differ from its own analytic
+spatial-error prediction by at most log2(1.001/0.999), approximately 0.002886.
+This bound follows from the <=0.1% algebraic-error condition at both levels.
+The broad interval encloses the independently calculated finite-grid orders
+with this allowance; the single-mode test and its narrower interval are unchanged.
+No acceptance criterion was loosened after execution.
+
+**Measured results:** All four systems returned CONVERGED:
+
+| Interior grid | h (m) | Iterations | True relative residual | L2(h) (V) | Linf (V/m) | Order L2 / Linf |
+|---|---|---|---|---|---|---|
+| 7 x 7 | 0.125 | 2 | 4.3080550329e-15 | 1.6772829107e-2 | 4.0295266132e-2 | N/A |
+| 15 x 15 | 0.0625 | 2 | 9.5409393249e-14 | 4.0464757927e-3 | 9.7461426998e-3 | 2.0513881818 / 2.0477071104 |
+| 31 x 31 | 0.03125 | 2 | 1.7138177559e-12 | 1.0028128572e-3 | 2.4376485621e-3 | 2.0126135665 / 1.9993411998 |
+| 63 x 63 | 0.015625 | 3 | 9.1598599610e-12 | 2.5015834182e-4 | 6.0820664135e-4 | 2.0031389318 / 2.0028566712 |
+
+| Interior grid | Algebraic L2(h) | Algebraic Linf | L2 budget B_2 |
+|---|---|---|---|
+| 7 x 7 | 3.3495750968e-16 | 1.0730891002e-15 | 2.0637891423e-13 |
+| 15 x 15 | 1.8466325247e-15 | 5.5115959539e-15 | 9.1809021736e-13 |
+| 31 x 31 | 8.9020525553e-15 | 3.4063822997e-14 | 5.1886078477e-12 |
+| 63 x 63 | 1.4006429344e-14 | 6.1869712370e-14 | 2.3369923369e-11 |
+
+Raw full-precision CSV rows, including separate analytic order predictions,
+errors, spectral gaps, condition numbers, and budgets, are preserved separately:
+`experiments/helmholtz_2d/results/stage5b_multimode_convergence.csv`.
+This is the direct executable output after its first metadata line. The previous
+`stage5b_grid_convergence.csv` remains unchanged.
+
+**Interpretation:** Both norms show the predicted second-order spatial accuracy
+for this mixture. Two distinct excited eigenvalues give a two-dimensional
+Krylov space in exact arithmetic. Observed iteration counts are 2,2,2,3; finite
+precision may require more than two iterations. The third step on the finest
+grid is consistent with roundoff-excited components outside the ideal modal
+subspace; their cause was not separately instrumented. Restart=20 is configured
+but no restart is exercised here. Spatial errors dominate both measured
+algebraic errors and their conservative L2 budgets.
+
+**Limitations:** Two fixed real modes, four square isotropic grids, k=1 safely
+below resonance, one compiler/platform. No general multimode, anisotropic,
+indefinite, near-resonance, scalability, or universal-stability claim. No new
+article or publication claim.
+
+**Reproduction commands:** From the root with the complete Stage 5B/hardening patch:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel 2
+ctest --test-dir build -R '^wavecore.convergence.multimode$' -V
+./build/wavecore_multimode_convergence_test
+ctest --test-dir build --output-on-failure
+```
+
+### Stage 5B finalization: Diagnostic context and documentation
+
+The finalization patch changes only failure reporting in the two convergence
+drivers: errors include n, h, the violated condition, measurements, and allowed
+limits. Mathematical formulas, solver parameters, and acceptance predicates
+are preserved. Both original CSV files and their recorded numerical values
+remain unchanged. The historical byte-for-byte statement in the multimode
+record describes that earlier hardening step; finalization intentionally updates
+single-mode diagnostic source code as well.
+
+The root changelog records Stage 5A and the unreleased Stage 5B milestone.
+[Technical decisions](technical-decisions.md) document the rationale evidenced
+by the implemented experiments. README and navigation now reflect the completed
+test workflows. No production numerical kernel or manuscript is changed.
+
 ## Known Limitations
 
-- The current records cover diagnostic linear systems and small algebraic
-  FDFD + GMRES integration tests; a user-facing application workflow is absent.
-- No spatial-refinement or convergence-order measurement has been recorded.
+- The current records cover diagnostic linear systems, small algebraic
+  FDFD + GMRES integration tests, and single-mode/two-mode continuous-RHS refinement
+  study; a user-facing application workflow is absent.
+- Spatial order has been measured for one mode and one two-mode mixture on
+  square nonresonant grids; broader spatial studies remain open.
 - Near-resonance conditioning has not been systematically swept.
 - No preconditioning, large-scale scalability, or performance result is
   available.
@@ -251,10 +598,10 @@ single case with `./build/wavecore_integration_test restarted`.
 
 ## Open Research Questions
 
-- How does the verified algebraic FDFD + GMRES baseline extend to continuous
-  forcing and a user-facing reproducible workflow?
-- What spatial convergence order is observed when discretization and iteration
-  errors are separated?
+- How do the verified algebraic, single-mode, and two-mode continuous-RHS baselines extend
+  to a user-facing reproducible workflow?
+- Does the observed spatial order persist for broader modal mixtures, rectangular grids,
+  anisotropic refinement, and indefinite nonresonant operators?
 - How do continuous and discrete resonance proximity affect conditioning,
   residuals, and forward error?
 - Which preconditioners improve Helmholtz iteration counts without obscuring

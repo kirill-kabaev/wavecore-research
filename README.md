@@ -17,8 +17,9 @@ tested numerical building blocks:
 - verify discretization and solver behavior with deterministic tests;
 - record methods and limitations in reproducible research documents.
 
-End-to-end FDFD-plus-GMRES integration and a systematic spatial-convergence
-study are planned work. They are not presented as current functionality.
+End-to-end FDFD-plus-GMRES integration is verified through deterministic tests.
+Stage 5B confirms second-order spatial accuracy for a single sine mode and a
+two-mode mixture on four nested square grids with continuous manufactured forcing.
 
 ## Current Implementation
 
@@ -36,7 +37,7 @@ The C++20 library currently provides:
   Arnoldi orthogonalization, two-pass modified Gram--Schmidt, complex Givens
   rotations, true-residual checks, and diagnostic status information;
 - deterministic numerical verification tests covering the grid, CSR matrix,
-  operator assembly, and GMRES behavior;
+  operator assembly, GMRES behavior, end-to-end integration, and spatial convergence;
 - a local CMake/CTest build and test infrastructure.
 
 The command-line application is currently a minimal project-information entry
@@ -85,8 +86,10 @@ After configuring and building, run:
 ctest --test-dir build --output-on-failure
 ```
 
-The registered tests are `wavecore.library_metadata`, `wavecore.grid`,
-`wavecore.csr_matrix`, `wavecore.assembly`, and `wavecore.gmres`.
+There are eleven registered tests: `wavecore.library_metadata`, `wavecore.grid`,
+`wavecore.csr_matrix`, `wavecore.assembly`, `wavecore.gmres`, four
+`wavecore.integration.*` cases, `wavecore.convergence`, and
+`wavecore.convergence.multimode`. See the [test coverage matrix](docs/test-coverage.md).
 
 ## Building Scientific Papers
 
@@ -147,9 +150,10 @@ does not claim that they have been published in a peer-reviewed journal.
 ## Project Status
 
 The grid, complex CSR storage, five-point Helmholtz assembly, restarted GMRES,
-and their deterministic verification tests are implemented. The integrated
-FDFD solve driven by GMRES, larger-scale performance studies, and spatial
-convergence experiments remain planned extensions.
+Stage 5A integration tests, and Stage 5B single-mode/multimode spatial-convergence
+experiments are implemented. A user-facing solve CLI, near-resonance studies,
+preconditioning, and larger-scale performance studies remain planned extensions.
+See the [changelog](CHANGELOG.md) and [technical decisions](docs/technical-decisions.md).
 
 ## Reproducibility
 
@@ -160,3 +164,9 @@ Separate discretization error, iteration error, floating-point effects, and
 modeling assumptions when interpreting results. Do not treat a passing unit
 test as evidence of universal solver stability or of a completed scientific
 validation study.
+
+The [research log](docs/research-log.md) records Stage 5B parameters and commands.
+Full numerical tables are preserved in separate [single-mode](experiments/helmholtz_2d/results/stage5b_grid_convergence.csv)
+and [multimode](experiments/helmholtz_2d/results/stage5b_multimode_convergence.csv)
+CSV files. These limited experiments do not establish near-resonance behavior,
+cross-platform reproducibility, or general GMRES performance.

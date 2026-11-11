@@ -126,4 +126,17 @@ if(BUILD_TESTING)
         add_test(NAME wavecore.integration.${integration_case}
                  COMMAND wavecore_integration_test ${integration_case})
     endforeach()
+
+    add_executable(wavecore_convergence_test tests/helmholtz/test_convergence.cpp)
+    target_link_libraries(wavecore_convergence_test PRIVATE WaveCore::wavecore)
+    set_target_properties(wavecore_convergence_test PROPERTIES CXX_EXTENSIONS OFF)
+    wavecore_enable_warnings(wavecore_convergence_test)
+    add_test(NAME wavecore.convergence COMMAND wavecore_convergence_test)
+
+    add_executable(wavecore_multimode_convergence_test
+                   tests/helmholtz/test_multimode_convergence.cpp)
+    target_link_libraries(wavecore_multimode_convergence_test PRIVATE WaveCore::wavecore)
+    set_target_properties(wavecore_multimode_convergence_test PROPERTIES CXX_EXTENSIONS OFF)
+    wavecore_enable_warnings(wavecore_multimode_convergence_test)
+    add_test(NAME wavecore.convergence.multimode COMMAND wavecore_multimode_convergence_test)
 endif()
